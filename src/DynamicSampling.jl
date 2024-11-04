@@ -1,5 +1,7 @@
 module DynamicSampling
 
+# Strongly based on https://www.aarondefazio.com/tangentially/?p=58
+# and https://github.com/adefazio/sampler
 struct DynamicRangeSampler
 	N::Int
 	max_value::Float64
