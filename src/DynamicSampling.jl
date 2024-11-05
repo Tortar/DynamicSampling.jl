@@ -1,10 +1,12 @@
+# Strongly based on https://www.aarondefazio.com/tangentially/?p=58
+# and https://github.com/adefazio/sampler
+
 module DynamicSampling
 
 using Random
 
-# Strongly based on https://www.aarondefazio.com/tangentially/?p=58
-# and https://github.com/adefazio/sampler
-struct DynamicSampler
+struct DynamicSampler{R}
+    rng::R
     N::Int
     toplevel::Int
     totweight::Base.RefValue{Float64}
@@ -26,7 +28,7 @@ function DynamicSampler(rng, N::Int, minweight=1.0, maxweight=100.0)
     level_weights = zeros(Float64, nlevels)
     level_buckets = [Int[] for _ in 1:nlevels]
     level_max = [2.0^(toplevel-i+1) for i in 1:nlevels]
-    return DynamicSampler(N, toplevel, Ref(totweight), weights,
+    return DynamicSampler(rng, N, toplevel, Ref(totweight), weights,
         level_weights, level_buckets, level_max)
 end
 
@@ -75,11 +77,10 @@ function Base.append!(S::DynamicSampler, e::Tuple)
     return S
 end
 
-sample(S::DynamicSampler) = _sample(S).idx
-function _sample(S::DynamicSampler)
+function sample(S::DynamicSampler; info = false)
     local level, idx, idx_in_level, weight  
     # Sample a level using the CDF method
-    u = rand() * S.totweight[]
+    u = rand(S.rng) * S.totweight[]
     cumulative_weight = 0.0
     for i in eachindex(S.level_weights)
         cumulative_weight += S.level_weights[i]
@@ -91,12 +92,12 @@ function _sample(S::DynamicSampler)
     level_size = length(bucket)
     level_max = S.level_max[level]
     while true
-        idx_in_level = rand(1:level_size)
+        idx_in_level = rand(S.rng, 1:level_size)
         idx = bucket[idx_in_level]
         weight = S.weights[idx]
-        rand() * level_max <= weight && break
+        rand(S.rng) * level_max <= weight && break
     end     
-    return DynamicIndex(idx, weight, level, idx_in_level)
+    return info == false ? idx : DynamicIndex(idx, weight, level, idx_in_level)
 end
     
 function Base.deleteat!(S::DynamicSampler, idx)
