@@ -1,32 +1,33 @@
 module DynamicSampling
 
+using Random
+
 # Strongly based on https://www.aarondefazio.com/tangentially/?p=58
 # and https://github.com/adefazio/sampler
 struct DynamicSampler
     N::Int
-    max_value::Float64
-    min_value::Float64
-    top_level::Int
-    bottom_level::Int
-    nlevels::Int
-    total_weight::Base.RefValue{Float64}
+    toplevel::Int
+    totweight::Base.RefValue{Float64}
     weights::Vector{Float64}
     level_weights::Vector{Float64}
     level_buckets::Vector{Vector{Int}}
     level_max::Vector{Float64}
 end
-function DynamicSampler(N, max_value=100.0, min_value=1.0)
-    top_level = ceil(Int, log2(max_value))
-    bottom_level = ceil(Int, log2(min_value))
-    nlevels = top_level - bottom_level + 1
-    total_weight = 0.0
+
+function DynamicSampler(N::Int, minweight=1.0, maxweight=100.0)
+	return DynamicSampler(Random.default_rng(), N, minweight, maxweight)
+end
+function DynamicSampler(rng, N::Int, minweight=1.0, maxweight=100.0)
+    toplevel = ceil(Int, log2(maxweight))
+    bottomlevel = ceil(Int, log2(minweight))
+    nlevels = toplevel - bottomlevel + 1
+    totweight = 0.0
     weights = zeros(Float64, N)
     level_weights = zeros(Float64, nlevels)
     level_buckets = [Int[] for _ in 1:nlevels]
-    level_max = [2^Float64(top_level-i+1) for i in 1:nlevels]
-    return DynamicSampler(N, max_value, min_value, top_level,
-        bottom_level, nlevels, Ref(total_weight), weights, level_weights,
-        level_buckets, level_max)
+    level_max = [2.0^(toplevel-i+1) for i in 1:nlevels]
+    return DynamicSampler(N, toplevel, Ref(totweight), weights,
+        level_weights, level_buckets, level_max)
 end
 
 struct DynamicIndex
@@ -39,70 +40,81 @@ DynamicIndex(idx, weight) = DynamicIndex(idx, weight, 0, 0)
 
 function Base.push!(S::DynamicSampler, e::Tuple)
     idx, weight = e
-    return _push!(S, idx, weight)
-end
-function Base.push!(S::DynamicSampler, e::DynamicIndex)
-    idx, weight = e.idx, e.weight
-    return _push!(S, idx, weight)
-end
-
-function _push!(S::DynamicSampler, idx, weight)
-    S.total_weight[] += weight
-        
-    S.weights[idx] = weight
-        
-    level = getlevel(S, weight)
-        
+    S.totweight[] += weight
+    level = getlevel(S.toplevel, weight)
     S.level_weights[level] += weight
     push!(S.level_buckets[level], idx)
+	S.weights[idx] = weight
     return S
 end
 
-function _sample(S::DynamicSampler)
-    local level, idx, idx_in_level, idx_weight
+function Base.append!(S::DynamicSampler, e::Tuple)
+    inds, weights = e
+    nlevels = zeros(Int, length(S.level_buckets))
+    sumweights = 0.0
+    levs = zeros(Int8, length(inds))
+    for (i, w) in enumerate(weights)
+        level = getlevel(S.toplevel, w)
+        nlevels[level] += 1
+        S.level_weights[level] += w
+        S.weights[i] = w
+        sumweights += w
+        levs[i] = level
+    end
+    S.totweight[] += sumweights
+    for (i, bucket) in enumerate(S.level_buckets)
+        resize!(bucket, length(bucket) + nlevels[i])
+        nlevels[i] = length(bucket)
+    end
+    for (i, id) in enumerate(inds)
+        level = levs[i]
+        bucket = S.level_buckets[level]
+        bucket[nlevels[level]] = i
+        nlevels[level] -= 1
+    end
+    return S
+end
 
-    u = rand() * S.total_weight[]
-        
+sample(S::DynamicSampler) = _sample(S).idx
+function _sample(S::DynamicSampler)
+    local level, idx, idx_in_level, weight  
     # Sample a level using the CDF method
+    u = rand() * S.totweight[]
     cumulative_weight = 0.0
     for i in eachindex(S.level_weights)
         cumulative_weight += S.level_weights[i]
         level = i
         u < cumulative_weight && break
-    end
-            
+    end         
     # Now sample within the level using rejection sampling
-    level_size = length(S.level_buckets[level])
+    bucket = S.level_buckets[level]
+    level_size = length(bucket)
     level_max = S.level_max[level]
     while true
         idx_in_level = rand(1:level_size)
-        idx = S.level_buckets[level][idx_in_level]
-        idx_weight = S.weights[idx]
-        u_lvl = rand() * level_max
-        u_lvl <= idx_weight && break
+        idx = bucket[idx_in_level]
+        weight = S.weights[idx]
+        rand() * level_max <= weight && break
     end     
-    return DynamicIndex(idx, idx_weight, level, idx_in_level)
+    return DynamicIndex(idx, weight, level, idx_in_level)
 end
-
-sample(S::DynamicSampler) = _sample(S).idx
     
-function Base.pop!(S::DynamicSampler, idx)
+function Base.deleteat!(S::DynamicSampler, idx)
     weight = S.weights[idx]
-    level = getlevel(S, weight)
+    level = getlevel(S.toplevel, weight)
     idx_in_level = findfirst(x -> x == idx, S.level_buckets[level])
     isnothing(idx_in_level) && return error()
-    _pop!(S, idx, weight, level, idx_in_level)
-    return idx
+    _deleteat!(S, idx, weight, level, idx_in_level)
+    return S
 end
-function Base.pop!(S::DynamicSampler, e::DynamicIdx)
+function Base.deleteat!(S::DynamicSampler, e::DynamicIndex)
     idx, weight, level, idx_in_level = e.idx, e.weight, e.level, e.idx_in_level
-    _pop!(S, idx, weight, level, idx_in_level)
-    return e
+    _deleteat!(S, idx, weight, level, idx_in_level)
+    return S
 end
-
-function _pop!(S, idx, weight, level, idx_in_level)
+function _deleteat!(S, idx, weight, level, idx_in_level)
     S.weights[idx] = 0.0
-    S.total_weight[] -= weight
+    S.totweight[] -= weight
     S.level_weights[level] -= weight
     # Swap with last element for efficent delete
     bucket = S.level_buckets[level]
@@ -110,9 +122,6 @@ function _pop!(S, idx, weight, level, idx_in_level)
     pop!(bucket)
 end
 
-function getlevel(S::DynamicSampler, weight)
-    raw_level = ceil(Int, log2(weight))
-    return S.top_level - raw_level + 1
-end
+getlevel(toplevel, weight) = toplevel - ceil(Int, log2(weight)) + 1
 
 end
