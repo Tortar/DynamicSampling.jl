@@ -3,11 +3,14 @@
 
 module DynamicSampling
 
+export DynamicSampler
+
 using Random
 
 struct DynamicSampler{R}
     rng::R
     N::Int
+    totvalues::Base.RefValue{Int}
     totweight::Base.RefValue{Float64}
     weights::Vector{Float64}
     level_weights::Vector{Float64}
@@ -24,7 +27,7 @@ function DynamicSampler(rng, N::Int)
     level_buckets = [Int[],]
     level_max = Float64[]
     level_inds = Int[]
-    return DynamicSampler(rng, N, Ref(totweight), weights, level_weights, 
+    return DynamicSampler(rng, N, Ref(0), Ref(totweight), weights, level_weights, 
     	level_buckets, level_max, level_inds)
 end
 
@@ -40,6 +43,7 @@ function Base.push!(S::DynamicSampler, e::Tuple)
     idx, weight = e
     S.weights[idx] != 0.0 && error()
     S.totweight[] += weight
+    S.totvalues[] += 1
     level_raw = ceil(Int, log2(weight))
     createlevel!(S, level_raw)
     level = getlevel(first(S.level_inds), weight)
@@ -63,6 +67,7 @@ function Base.append!(S::DynamicSampler, e::Tuple)
         S.level_weights[level] += w
         S.weights[i] = w
         sumweights += w
+        S.totvalues[] += 1
         levs[i] = level_raw
     end
     S.totweight[] += sumweights
@@ -80,7 +85,7 @@ function Base.append!(S::DynamicSampler, e::Tuple)
     return S
 end
 
-function sample(S::DynamicSampler; info = false)
+function Base.rand(S::DynamicSampler; info = false)
     local level, idx, idx_in_level, weight  
     # Sample a level using the CDF method
     u = rand(S.rng) * S.totweight[]
@@ -124,6 +129,7 @@ function Base.deleteat!(S::DynamicSampler, e::DynamicIndex)
 end
 function _deleteat!(S, idx, weight, level, idx_in_level)
     S.weights[idx] = 0.0
+    S.totvalues[] -= 1
     S.totweight[] -= weight
     S.level_weights[level] -= weight
     # Swap with last element for efficent delete
@@ -131,6 +137,8 @@ function _deleteat!(S, idx, weight, level, idx_in_level)
     bucket[idx_in_level], bucket[end] = bucket[end], bucket[idx_in_level]
     pop!(bucket)
 end
+
+Base.isempty(S::DynamicSampler) = S.totvalues[] == 0
 
 function createlevel!(S, level_w, nlevels=nothing)
     if isempty(S.level_max)
