@@ -28,22 +28,22 @@ function DynamicSampler(rng)
     level_max = Float64[0.0]
     level_inds = Int[]
     return DynamicSampler(rng, Ref(0), Ref(totweight), weights, level_weights, 
-    	level_buckets, level_max, level_inds)
+        level_buckets, level_max, level_inds)
 end
 
-struct DynamicIndex
+struct IndexInfo
     idx::Int
     weight::Float64
     level::Int
     idx_in_level::Int
 end
-DynamicIndex(idx, weight) = DynamicIndex(idx, weight, 0, 0)
+IndexInfo(idx, weight) = IndexInfo(idx, weight, 0, 0)
 
 Base.sizehint!(s::DynamicSampler, N) = resize_w!(s, N)
 
 function Base.push!(S::DynamicSampler, e::Tuple)
     idx, weight = e
-    resize_w!(s, idx)
+    resize_w!(S, idx)
     S.weights[idx] != 0.0 && error()
     S.totweight[] += weight
     S.totvalues[] += 1
@@ -53,7 +53,7 @@ function Base.push!(S::DynamicSampler, e::Tuple)
     S.level_max[level] = max(S.level_max[level], weight)
     S.level_weights[level] += weight
     push!(S.level_buckets[level], idx)
-	S.weights[idx] = weight
+    S.weights[idx] = weight
     return S
 end
 
@@ -117,7 +117,7 @@ function Base.rand(S::DynamicSampler; info = false)
         weight = S.weights[idx]
         rand(S.rng) * level_max <= weight && break
     end     
-    return info == false ? idx : DynamicIndex(idx, weight, level, idx_in_level)
+    return info == false ? idx : IndexInfo(idx, weight, level, idx_in_level)
 end
 
 function Base.deleteat!(S::DynamicSampler, idx)
@@ -128,7 +128,7 @@ function Base.deleteat!(S::DynamicSampler, idx)
     _deleteat!(S, idx, weight, level, idx_in_level)
     return S
 end
-function Base.deleteat!(S::DynamicSampler, e::DynamicIndex)
+function Base.deleteat!(S::DynamicSampler, e::IndexInfo)
     idx, weight, level, idx_in_level = e.idx, e.weight, e.level, e.idx_in_level
     _deleteat!(S, idx, weight, level, idx_in_level)
     return S
@@ -147,6 +147,15 @@ end
 Base.isempty(S::DynamicSampler) = S.totvalues[] == 0
 
 allvalues(s::DynamicSampler) = reduce(vcat, s.level_buckets)
+
+function Base.show(io::IO, mime::MIME"text/plain", s::DynamicSampler)
+    inds = allvalues(s)
+    print("DynamicSampler(indices = $(inds), weights = $(s.weights[inds]))")
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", di::IndexInfo)
+    print("IndexInfo(idx = $(di.idx), weight = $(di.weight))")
+end
 
 function resize_w!(s, N)
     N_curr = length(s.weights)
