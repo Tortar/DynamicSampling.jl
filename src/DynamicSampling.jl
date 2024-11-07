@@ -1,15 +1,15 @@
-# Strongly based on https://www.aarondefazio.com/tangentially/?p=58
+# Based on https://www.aarondefazio.com/tangentially/?p=58
 # and https://github.com/adefazio/sampler
 
 module DynamicSampling
 
 export DynamicSampler
+export allvalues
 
 using Random
 
 struct DynamicSampler{R}
     rng::R
-    N::Int
     totvalues::Base.RefValue{Int}
     totweight::Base.RefValue{Float64}
     weights::Vector{Float64}
@@ -19,15 +19,15 @@ struct DynamicSampler{R}
     level_inds::Vector{Int}
 end
 
-DynamicSampler(N::Int) = DynamicSampler(Random.default_rng(), N)
-function DynamicSampler(rng, N::Int)
+DynamicSampler() = DynamicSampler(Random.default_rng())
+function DynamicSampler(rng)
     totweight = 0.0
-    weights = zeros(Float64, N)
+    weights = Float64[]
     level_weights = Float64[0.0]
     level_buckets = [Int[],]
-    level_max = Float64[]
+    level_max = Float64[0.0]
     level_inds = Int[]
-    return DynamicSampler(rng, N, Ref(0), Ref(totweight), weights, level_weights, 
+    return DynamicSampler(rng, Ref(0), Ref(totweight), weights, level_weights, 
     	level_buckets, level_max, level_inds)
 end
 
@@ -39,14 +39,18 @@ struct DynamicIndex
 end
 DynamicIndex(idx, weight) = DynamicIndex(idx, weight, 0, 0)
 
+Base.sizehint!(s::DynamicSampler, N) = resize_w!(s, N)
+
 function Base.push!(S::DynamicSampler, e::Tuple)
     idx, weight = e
+    resize_w!(s, idx)
     S.weights[idx] != 0.0 && error()
     S.totweight[] += weight
     S.totvalues[] += 1
     level_raw = ceil(Int, log2(weight))
     createlevel!(S, level_raw)
-    level = getlevel(first(S.level_inds), weight)
+    level = level_raw - first(S.level_inds) + 1
+    S.level_max[level] = max(S.level_max[level], weight)
     S.level_weights[level] += weight
     push!(S.level_buckets[level], idx)
 	S.weights[idx] = weight
@@ -58,17 +62,19 @@ function Base.append!(S::DynamicSampler, e::Tuple)
     nlevels = zeros(Int, length(S.level_buckets))
     sumweights = 0.0
     levs = zeros(Int16, length(inds))
+    resize_w!(S, maximum(inds))
     for (i, w) in enumerate(weights)
         S.weights[i] != 0.0 && error()
         level_raw = ceil(Int, log2(w))
         createlevel!(S, level_raw, nlevels)
         level = level_raw - first(S.level_inds) + 1
+        S.level_max[level] = max(S.level_max[level], w)
         nlevels[level] += 1
         S.level_weights[level] += w
         S.weights[i] = w
         sumweights += w
         S.totvalues[] += 1
-        levs[i] = level_raw
+        levs[i] = ceil(Int, level_raw)
     end
     S.totweight[] += sumweights
     for (i, bucket) in enumerate(S.level_buckets)
@@ -86,7 +92,7 @@ function Base.append!(S::DynamicSampler, e::Tuple)
 end
 
 function Base.rand(S::DynamicSampler; info = false)
-    local level, idx, idx_in_level, weight  
+    local level, idx, idx_in_level, weight
     # Sample a level using the CDF method
     u = rand(S.rng) * S.totweight[]
     cumulative_weight = 0.0
@@ -113,7 +119,7 @@ function Base.rand(S::DynamicSampler; info = false)
     end     
     return info == false ? idx : DynamicIndex(idx, weight, level, idx_in_level)
 end
-    
+
 function Base.deleteat!(S::DynamicSampler, idx)
     weight = S.weights[idx]
     level = getlevel(first(S.level_inds), weight)
@@ -140,21 +146,33 @@ end
 
 Base.isempty(S::DynamicSampler) = S.totvalues[] == 0
 
+allvalues(s::DynamicSampler) = reduce(vcat, s.level_buckets)
+
+function resize_w!(s, N)
+    N_curr = length(s.weights)
+    if N > N_curr
+        resize!(s.weights, N)
+        @inbounds @simd for i in N_curr+1:N
+            s.weights[i] = 0.0
+        end
+    end
+    return s
+end
+
 function createlevel!(S, level_w, nlevels=nothing)
-    if isempty(S.level_max)
-        push!(S.level_max, 2.0^level_w)
+    if isempty(S.level_inds)
         push!(S.level_inds, level_w)
     elseif level_w > S.level_inds[end]
         for i in S.level_inds[end]+1:level_w
-            push!(S.level_max, 2.0^i)
+            push!(S.level_max, 0.0)
             push!(S.level_inds, i)
             push!(S.level_buckets, Int[])
             push!(S.level_weights, 0.0)
             !isnothing(nlevels) && push!(nlevels, 0)
         end
     elseif level_w < S.level_inds[begin]
-        for i in S.level_inds[begin]-1:-1:level_w-1
-            pushfirst!(S.level_max, 2.0^i)
+        for i in S.level_inds[begin]-1:-1:level_w
+            pushfirst!(S.level_max, 0.0)
             pushfirst!(S.level_inds, i)
             pushfirst!(S.level_buckets, Int[])
             pushfirst!(S.level_weights, 0.0)
