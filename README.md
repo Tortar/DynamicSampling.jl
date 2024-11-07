@@ -2,8 +2,8 @@
 # DynamicSampling.jl
 
 This package implements efficient samplers which can be used to sample from
-(weighted) indices while being able to remove and add elements from the sampler in 
-constant time.
+(weighted) indices while being able to remove, add and sample elements from
+the sampler in constant time.
 
 # Example
 
