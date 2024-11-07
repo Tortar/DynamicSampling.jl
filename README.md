@@ -23,9 +23,8 @@ julia> deleteat!(sampler, 7)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 8, 9, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 9.0, 10.0])
 ```
 
-Importantly using `deleteat!` as above will incur a non-constant overhead but
-if you happen to require to remove from the sampler already samples elements
-you can use instead
+Importantly using `deleteat!` as above will incur a non-constant overhead. However,
+if you happen to require to remove already sampled elements, you can use instead
 
 ```julia
 julia> i = rand(sampler; info=true)
@@ -35,5 +34,5 @@ julia> deleteat!(sampler, i)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 8, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0])
 ```
 
-which will be instead a `O(1)` operation.
+which will be a `O(1)` operation.
 
