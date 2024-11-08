@@ -1,8 +1,7 @@
+# DynamicSampling.jl
 
 [![CI](https://github.com/Tortar/DynamicSampling.jl/workflows/CI/badge.svg)](https://github.com/Tortar/DynamicSampling.jl/actions?query=workflow%3ACI)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-
-# DynamicSampling.jl
 
 This package implements efficient samplers which can be used to sample from
 (weighted) indices while being able to remove, add and sample elements from
