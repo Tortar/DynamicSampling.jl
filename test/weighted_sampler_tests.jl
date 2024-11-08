@@ -1,6 +1,6 @@
 
 @testset "DynamicSampling.jl Tests" begin
-	b = 100
+    b = 100
     range = 1:b
     weights = [Float64(i) for i in range]
     weights2 = (Float64(i) for i in range)
