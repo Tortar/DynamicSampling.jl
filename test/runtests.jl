@@ -8,6 +8,7 @@ using StatsBase
 using Test
 
 @testset "DynamicSampling.jl Tests" begin
-	include("weighted_sampler_tests.jl")
-	include("benchmark_tests.jl")
+    include("package_sanity_tests.jl")
+    include("weighted_sampler_tests.jl")
+    include("benchmark_tests.jl")
 end

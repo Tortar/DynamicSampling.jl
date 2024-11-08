@@ -15,11 +15,11 @@ function b(rng, n)
 end
 
 @testset "Benchmark Tests" begin
-	rng = Xoshiro(42)
-	b_small = @benchmark b($rng, 100)
-	b_large = @benchmark b($rng, 10^6)
+    rng = Xoshiro(42)
+    b_small = @benchmark b($rng, 100)
+    b_large = @benchmark b($rng, 10^6)
 
-	println("Benchmark results\n")
-	println("Benchmark 10^2 items: $(mean(b_small.times)/10^6) ms")
-	println("Benchmark 10^6 items: $(mean(b_large.times)/10^6) ms")
+    println("Benchmark results\n")
+    println("Benchmark 10^2 items: $(mean(b_small.times)/10^6) ms")
+    println("Benchmark 10^6 items: $(mean(b_large.times)/10^6) ms")
 end

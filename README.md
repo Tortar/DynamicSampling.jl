@@ -1,4 +1,7 @@
 
+[![CI](https://github.com/JuliaDynamics/DynamicSampling.jl/workflows/CI/badge.svg)](https://github.com/JuliaDynamics/DynamicSampling.jl/actions?query=workflow%3ACI)
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+
 # DynamicSampling.jl
 
 This package implements efficient samplers which can be used to sample from
