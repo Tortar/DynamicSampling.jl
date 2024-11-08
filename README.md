@@ -21,8 +21,8 @@ julia> for i in 1:10
 julia> rand(sampler)
 7
 
-julia> deleteat!(sampler, 7)
-DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 8, 9, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 9.0, 10.0])
+julia> deleteat!(sampler, 8)
+DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 9, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 9.0, 10.0])
 ```
 
 Importantly using `deleteat!` as above will incur a non-constant overhead. However,
@@ -33,7 +33,7 @@ julia> i = rand(sampler; info=true)
 IndexInfo(idx = 9, weight = 9.0)
 
 julia> deleteat!(sampler, i)
-DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 8, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0])
+DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0])
 ```
 
 which will be a `O(1)` operation.
