@@ -41,7 +41,7 @@ IndexInfo(idx, weight) = IndexInfo(idx, weight, 0, 0)
 
 Base.sizehint!(s::DynamicSampler, N) = resize_w!(s, N)
 
-function Base.push!(S::DynamicSampler, e::Tuple)
+@inline function Base.push!(S::DynamicSampler, e::Tuple)
     idx, weight = e
     resize_w!(S, idx)
     S.weights[idx] != 0.0 && error()
@@ -63,7 +63,7 @@ function Base.append!(S::DynamicSampler, e::Tuple)
     sumweights = 0.0
     levs = zeros(Int16, length(inds))
     resize_w!(S, maximum(inds))
-    for (i, w) in enumerate(weights)
+    @inbounds for (i, w) in enumerate(weights)
         S.weights[i] != 0.0 && error()
         level_raw = ceil(Int, log2(w))
         createlevel!(S, level_raw, nlevels)
@@ -77,31 +77,33 @@ function Base.append!(S::DynamicSampler, e::Tuple)
         levs[i] = ceil(Int, level_raw)
     end
     S.totweight[] += sumweights
-    for (i, bucket) in enumerate(S.level_buckets)
+    @inbounds for (i, bucket) in enumerate(S.level_buckets)
         resize!(bucket, length(bucket) + nlevels[i])
         nlevels[i] = length(bucket)
     end
-    for (i, id) in enumerate(inds)
+    @inbounds for (i, id) in enumerate(inds)
         level_raw = levs[i]
         level = level_raw - first(S.level_inds) + 1
         bucket = S.level_buckets[level]
-        bucket[nlevels[level]] = i
+        bucket[nlevels[level]] = id
         nlevels[level] -= 1
     end
     return S
 end
 
-function Base.rand(S::DynamicSampler; info = false)
+@inline function Base.rand(S::DynamicSampler; info = false)
     local level, idx, idx_in_level, weight
     # Sample a level using the CDF method
     u = rand(S.rng) * S.totweight[]
     cumulative_weight = 0.0
+    level = 1
     for i in eachindex(S.level_weights)
         cumulative_weight += S.level_weights[i]
-        level = i
-        u < cumulative_weight && break
-    end         
-    # Now sample within the level using rejection sampling
+        if u < cumulative_weight
+            level = i
+            break
+        end
+    end   
     bucket = S.level_buckets[level]
     level_size = length(bucket)
     if level_size == 0
@@ -110,17 +112,18 @@ function Base.rand(S::DynamicSampler; info = false)
         bucket = S.level_buckets[level]
         level_size = length(bucket)
     end
-    level_max = S.level_max[level]
-    while true
+    level_max = S.level_max[level]      
+    # Now sample within the level using rejection sampling
+    @inbounds while true
         idx_in_level = rand(S.rng, 1:level_size)
         idx = bucket[idx_in_level]
         weight = S.weights[idx]
         rand(S.rng) * level_max <= weight && break
-    end     
+    end
     return info == false ? idx : IndexInfo(idx, weight, level, idx_in_level)
 end
 
-function Base.deleteat!(S::DynamicSampler, idx)
+@inline function Base.deleteat!(S::DynamicSampler, idx)
     weight = S.weights[idx]
     level = getlevel(first(S.level_inds), weight)
     idx_in_level = findfirst(x -> x == idx, S.level_buckets[level])
@@ -128,12 +131,12 @@ function Base.deleteat!(S::DynamicSampler, idx)
     _deleteat!(S, idx, weight, level, idx_in_level)
     return S
 end
-function Base.deleteat!(S::DynamicSampler, e::IndexInfo)
+@inline function Base.deleteat!(S::DynamicSampler, e::IndexInfo)
     idx, weight, level, idx_in_level = e.idx, e.weight, e.level, e.idx_in_level
     _deleteat!(S, idx, weight, level, idx_in_level)
     return S
 end
-function _deleteat!(S, idx, weight, level, idx_in_level)
+@inline function _deleteat!(S, idx, weight, level, idx_in_level)
     S.weights[idx] = 0.0
     S.totvalues[] -= 1
     S.totweight[] -= weight
@@ -157,7 +160,7 @@ function Base.show(io::IO, mime::MIME"text/plain", di::IndexInfo)
     print("IndexInfo(idx = $(di.idx), weight = $(di.weight))")
 end
 
-function resize_w!(s, N)
+@inline function resize_w!(s, N)
     N_curr = length(s.weights)
     if N > N_curr
         resize!(s.weights, N)
@@ -168,7 +171,7 @@ function resize_w!(s, N)
     return s
 end
 
-function createlevel!(S, level_w, nlevels=nothing)
+@inline function createlevel!(S, level_w, nlevels=nothing)
     if isempty(S.level_inds)
         push!(S.level_inds, level_w)
     elseif level_w > S.level_inds[end]
