@@ -68,7 +68,7 @@
 
     samples_counts = countmap([rand(s4) for _ in 1:10^5])
     counts_est = [samples_counts[i] for i in [2:b..., 1000]]
-    wsum = (b ÷ 2)*(b+1) - 1 + 1000
+    wsum = (b ÷ 2)*(b+1) - 1 + 200 + 1000
     ps_exact = [i == 2 ? 200/wsum : i/wsum for i in [2:b..., 1000]]
 
     chisq_test = ChisqTest(counts_est, ps_exact)
