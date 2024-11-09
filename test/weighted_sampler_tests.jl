@@ -53,4 +53,24 @@
 
     chisq_test = ChisqTest(counts_est, ps_exact)
     @test pvalue(chisq_test) > 0.05
+
+    s4 = DynamicSampler(rng)
+    
+    for (i, w) in zip(range, weights2)
+        push!(s3, (i, w))
+    end
+
+    deleteat!(s1, 1)
+    deleteat!(s1, 2)
+
+    push!(s1, (2, 200.0))
+    push!(s1, (1000, 1000.0))
+
+    samples_counts = countmap([rand(s3) for _ in 1:10^5])
+    counts_est = [samples_counts[i] for i in [2:b..., 1000]]
+    wsum = (b ÷ 2)*(b+1) - 1 + 1000
+    ps_exact = [i == 2 ? 200/wsum : i/wsum for i in [2:b..., 1000]]
+
+    chisq_test = ChisqTest(counts_est, ps_exact)
+    @test pvalue(chisq_test) > 0.05
 end
