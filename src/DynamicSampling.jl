@@ -91,7 +91,7 @@ function Base.append!(sp::DynamicSampler, e::Tuple)
     return sp
 end
 
-@inline function Base.rand(sp::DynamicSampler; info = false)
+@inline Base.@constprop :aggressive function Base.rand(sp::DynamicSampler; info = false)
     local level, idx, idx_in_level, weight
     # Sample a level using the CDF method
     u = rand(sp.rng) * sp.totweight[]
