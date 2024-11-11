@@ -4,7 +4,7 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 This package implements efficient samplers which can be used to sample from
-(weighted) indices while being able to remove, add and sample elements from
+discrete random while being able to remove, add and sample elements from
 the sampler in constant time.
 
 # Example
@@ -14,8 +14,9 @@ julia> using DynamicSampling
 
 julia> sampler = DynamicSampler();
 
-julia> for i in 1:10
-           push!(sampler, (i, Float64(i)))
+julia> # the sampler contains indices
+       for i in 1:10
+           push!(sampler, i, Float64(i))
        end
 
 julia> rand(sampler)
@@ -25,8 +26,8 @@ julia> deleteat!(sampler, 8)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 9, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 9.0, 10.0])
 ```
 
-Importantly using `deleteat!` as above will incur a non-constant overhead. However,
-if you happen to require to remove already sampled elements, you can use instead
+If you happen to require to remove already sampled elements, 
+you can use instead
 
 ```julia
 julia> i = rand(sampler; info=true)
@@ -36,5 +37,4 @@ julia> deleteat!(sampler, i)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0])
 ```
 
-which will be a `O(1)` operation.
-
+which is a bit more efficient than removing not sampled indices.
