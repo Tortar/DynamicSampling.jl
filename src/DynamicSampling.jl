@@ -55,7 +55,7 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     sp.level_weights[level] += weight
     bucket = sp.level_buckets[level]
     push!(bucket, idx)
-    !isempty(sp.inds_to_level) && sp.inds_to_level[idx] = length(bucket)
+    !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = length(bucket))
     sp.weights[idx] = weight
     return sp
 end
@@ -88,7 +88,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         level = level_raw - Int(first(sp.level_inds)) + 1
         bucket = sp.level_buckets[level]
         bucket[nlevels[level]] = id
-        !isempty(sp.inds_to_level) && sp.inds_to_level[idx] = nlevels[level]
+        !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = nlevels[level])
         nlevels[level] -= 1
     end
     return sp
