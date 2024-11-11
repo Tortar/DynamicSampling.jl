@@ -17,6 +17,7 @@ struct DynamicSampler{R}
     level_buckets::Vector{Vector{Int}}
     level_max::Vector{Float64}
     level_inds::Vector{Int16}
+    inds_to_level::Vector{Int}
 end
 
 DynamicSampler() = DynamicSampler(Random.default_rng())
@@ -27,8 +28,9 @@ function DynamicSampler(rng)
     level_buckets = [Int[],]
     level_max = Float64[0.0]
     level_inds = Int16[]
+    inds_to_level = Int[]
     return DynamicSampler(rng, Ref(0), Ref(totweight), weights, level_weights, 
-        level_buckets, level_max, level_inds)
+        level_buckets, level_max, level_inds, inds_to_level)
 end
 
 struct IndexInfo
@@ -41,8 +43,7 @@ IndexInfo(idx, weight) = IndexInfo(idx, weight, 0, 0)
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 
-@inline function Base.push!(sp::DynamicSampler, e::Tuple)
-    idx, weight = e
+@inline function Base.push!(sp::DynamicSampler, idx, weight)
     resize_w!(sp, idx)
     sp.weights[idx] != 0.0 && error()
     sp.totweight[] += weight
@@ -52,13 +53,14 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     level = level_raw - Int(first(sp.level_inds)) + 1
     sp.level_max[level] = max(sp.level_max[level], weight)
     sp.level_weights[level] += weight
-    push!(sp.level_buckets[level], idx)
+    bucket = sp.level_buckets[level]
+    push!(bucket, idx)
+    !isempty(sp.inds_to_level) && sp.inds_to_level[idx] = length(bucket)
     sp.weights[idx] = weight
     return sp
 end
 
-function Base.append!(sp::DynamicSampler, e::Tuple)
-    inds, weights = e
+function Base.append!(sp::DynamicSampler, inds, weights)
     nlevels = zeros(Int, length(sp.level_buckets))
     sumweights = 0.0
     levs = zeros(Int16, length(inds))
@@ -86,6 +88,7 @@ function Base.append!(sp::DynamicSampler, e::Tuple)
         level = level_raw - Int(first(sp.level_inds)) + 1
         bucket = sp.level_buckets[level]
         bucket[nlevels[level]] = id
+        !isempty(sp.inds_to_level) && sp.inds_to_level[idx] = nlevels[level]
         nlevels[level] -= 1
     end
     return sp
@@ -126,8 +129,15 @@ end
 @inline function Base.deleteat!(sp::DynamicSampler, idx)
     weight = sp.weights[idx]
     level = getlevel(Int(first(sp.level_inds)), weight)
-    idx_in_level = findfirst(x -> x == idx, sp.level_buckets[level])
-    isnothing(idx_in_level) && return error()
+    if isempty(sp.inds_to_level)
+        resize!(sp.inds_to_level, length(sp.weights))
+        for bucket in sp.level_buckets
+            for (i, idx) in enumerate(bucket)
+                sp.inds_to_level[idx] = i
+            end
+        end
+    end
+    idx_in_level = sp.inds_to_level[idx]
     _deleteat!(sp, idx, weight, level, idx_in_level)
     return sp
 end
@@ -143,6 +153,10 @@ end
     sp.level_weights[level] -= weight
     bucket = sp.level_buckets[level]
     bucket[idx_in_level], bucket[end] = bucket[end], bucket[idx_in_level]
+    if !isempty(sp.inds_to_level)
+        idx_other = bucket[idx_in_level]
+        sp.inds_to_level[idx_other] = idx_in_level
+    end
     pop!(bucket)
 end
 
@@ -163,6 +177,7 @@ end
     N_curr = length(sp.weights)
     if N > N_curr
         resize!(sp.weights, N)
+        !isempty(sp.inds_to_level) && resize!(sp.inds_to_level, N)
         @inbounds @simd for i in N_curr+1:N
             sp.weights[i] = 0.0
         end
