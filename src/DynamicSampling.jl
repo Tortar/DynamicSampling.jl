@@ -138,12 +138,12 @@ end
         end
     end
     idx_in_level = sp.inds_to_level[idx]
-    _deleteat!(sp, idx, weight, level, idx_in_level)
+    _delete!(sp, idx, weight, level, idx_in_level)
     return sp
 end
 @inline function Base.delete!(sp::DynamicSampler, e::IndexInfo)
     idx, weight, level, idx_in_level = e.idx, e.weight, e.level, e.idx_in_level
-    _deleteat!(sp, idx, weight, level, idx_in_level)
+    _delete!(sp, idx, weight, level, idx_in_level)
     return sp
 end
 @inline function _delete!(sp, idx, weight, level, idx_in_level)
