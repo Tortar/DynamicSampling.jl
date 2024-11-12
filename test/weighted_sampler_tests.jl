@@ -13,8 +13,8 @@
     @test sort!(allvalues(s1)) == collect(range)
     @test all(x -> 1 <= x <= b, [rand(s1) for _ in 1:10^3])
 
-    deleteat!(s1, 1)
-    deleteat!(s1, 2)
+    delete!(s1, 1)
+    delete!(s1, 2)
 
     @test all(x -> 3 <= x <= b, [rand(s1) for _ in 1:10^3])
 
@@ -27,8 +27,8 @@
     e1 = rand(s2; info=true)
     e2 = rand(s2; info=true)
 
-    deleteat!(s2, e1)
-    deleteat!(s2, e2)
+    delete!(s2, e1)
+    delete!(s2, e2)
     @test all(x -> x != e1.idx && x != e2.idx && 1 <= x <= b, [rand(s2) for _ in 1:10^3])
 
     rng = StableRNG(41)
@@ -44,7 +44,7 @@
     @test pvalue(chisq_test) > 0.05
 
     for i in 1:(b ÷ 2)
-    	deleteat!(s3, i)
+    	delete!(s3, i)
     end
 
     samples_counts = countmap([rand(s3) for _ in 1:10^5])
@@ -60,8 +60,8 @@
         push!(s4, i, w)
     end
 
-    deleteat!(s4, 1)
-    deleteat!(s4, 2)
+    delete!(s4, 1)
+    delete!(s4, 2)
 
     push!(s4, 2, 200.0)
     push!(s4, 1000, 1000.0)
