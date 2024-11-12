@@ -9,7 +9,7 @@ function b1(rng, n)
     for i in 1:n-1
         e = rand(s; info=true)
         t += e.idx
-        deleteat!(s, e)
+        delete!(s, e)
     end
     return t
 end
@@ -24,7 +24,7 @@ function b2(rng, n)
     for i in 1:n-1
         idx = rand(s)
         t += idx
-        deleteat!(s, idx)
+        delete!(s, idx)
     end
     return t
 end
