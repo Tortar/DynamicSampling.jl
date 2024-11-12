@@ -126,7 +126,7 @@ end
     return info == false ? idx : IndexInfo(idx, weight, level, idx_in_level)
 end
 
-@inline function Base.deleteat!(sp::DynamicSampler, idx)
+@inline function Base.delete!(sp::DynamicSampler, idx)
     weight = sp.weights[idx]
     level = getlevel(Int(first(sp.level_inds)), weight)
     if isempty(sp.inds_to_level)
@@ -141,12 +141,12 @@ end
     _deleteat!(sp, idx, weight, level, idx_in_level)
     return sp
 end
-@inline function Base.deleteat!(sp::DynamicSampler, e::IndexInfo)
+@inline function Base.delete!(sp::DynamicSampler, e::IndexInfo)
     idx, weight, level, idx_in_level = e.idx, e.weight, e.level, e.idx_in_level
     _deleteat!(sp, idx, weight, level, idx_in_level)
     return sp
 end
-@inline function _deleteat!(sp, idx, weight, level, idx_in_level)
+@inline function _delete!(sp, idx, weight, level, idx_in_level)
     sp.weights[idx] = 0.0
     sp.totvalues[] -= 1
     sp.totweight[] -= weight
@@ -164,7 +164,7 @@ Base.isempty(sp::DynamicSampler) = sp.totvalues[] == 0
 
 allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
 
-function update_weight!(sp::DynamicSampler, idx, new_weight)
+@inline function update_weight!(sp::DynamicSampler, idx, new_weight)
     deleteat!(sp, idx)
     push!(sp, idx, new_weight)
     return sp
