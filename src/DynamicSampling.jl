@@ -165,7 +165,7 @@ Base.isempty(sp::DynamicSampler) = sp.totvalues[] == 0
 allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
 
 @inline function Base.setindex!(sp::DynamicSampler, idx, new_weight)
-    deleteat!(sp, idx)
+    delete!(sp, idx)
     push!(sp, idx, new_weight)
     return sp
 end
