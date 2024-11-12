@@ -4,8 +4,8 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 This package implements efficient samplers which can be used to sample from
-a set of indices while being able to remove, add and sample elements from
-the sampler in constant time.
+a dynamic discrete distribution, represented by a set of pairs of indices and
+weights supporting removal, addition and sampling of elements in constant time.
 
 # Example
 
