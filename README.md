@@ -24,7 +24,7 @@ julia> # the sampler contains indices
 julia> rand(sampler)
 7
 
-julia> deleteat!(sampler, 8)
+julia> delete!(sampler, 8)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 9, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 9.0, 10.0])
 ```
 
@@ -35,7 +35,7 @@ you can use instead
 julia> i = rand(sampler; info=true)
 IndexInfo(idx = 9, weight = 9.0)
 
-julia> deleteat!(sampler, i)
+julia> delete!(sampler, i)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0])
 ```
 
