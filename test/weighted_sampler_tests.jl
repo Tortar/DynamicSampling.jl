@@ -10,7 +10,7 @@
     	push!(s1, i, weights[i])
     end
 
-    @test sort!(allvalues(s1)) == collect(range)
+    @test sort!(allinds(s1)) == collect(range)
     @test all(x -> 1 <= x <= b, [rand(s1) for _ in 1:10^3])
 
     delete!(s1, 1)
@@ -21,7 +21,7 @@
     s2 = DynamicSampler()
     append!(s2, range, weights2)
 
-    @test sort!(allvalues(s2)) == collect(range)
+    @test sort!(allinds(s2)) == collect(range)
     @test all(x -> 1 <= x <= b, [rand(s2) for _ in 1:10^3])
 
     e1 = rand(s2; info=true)
