@@ -4,7 +4,7 @@
 module DynamicSampling
 
 export DynamicSampler
-export allinds, update_weight!
+export allinds
 
 using Random
 
@@ -164,7 +164,7 @@ Base.isempty(sp::DynamicSampler) = sp.totvalues[] == 0
 
 allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
 
-@inline function update_weight!(sp::DynamicSampler, idx, new_weight)
+@inline function Base.setindex!(sp::DynamicSampler, idx, new_weight)
     deleteat!(sp, idx)
     push!(sp, idx, new_weight)
     return sp
