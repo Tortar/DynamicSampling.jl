@@ -4,15 +4,17 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 This package implements efficient samplers which can be used to sample from
-discrete random while being able to remove, add and sample elements from
+a set of indices while being able to remove, add and sample elements from
 the sampler in constant time.
 
 # Example
 
 ```julia
-julia> using DynamicSampling
+julia> using DynamicSampling, Random
 
-julia> sampler = DynamicSampler();
+julia> rng = Xoshiro(42);
+
+julia> sampler = DynamicSampler(rng);
 
 julia> # the sampler contains indices
        for i in 1:10
