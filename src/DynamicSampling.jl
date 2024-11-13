@@ -185,7 +185,7 @@ allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", sp::DynamicSampler)
-    inds = allvalues(sp)
+    inds = allinds(sp)
     print("DynamicSampler(indices = $(inds), weights = $(sp.weights[inds]))")
 end
 
