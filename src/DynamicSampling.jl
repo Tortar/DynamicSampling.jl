@@ -99,14 +99,14 @@ end
     # Sample a level using the CDF method
     u = rand(sp.rng) * sp.totweight[]
     cumulative_weight = 0.0
-    level = 1
-    for i in eachindex(sp.level_weights)
+    level = length(sp.level_weights)
+    for i in reverse(eachindex(sp.level_weights))
         cumulative_weight += sp.level_weights[i]
         if u < cumulative_weight
             level = i
             break
         end
-    end   
+    end
     bucket = sp.level_buckets[level]
     level_size = length(bucket)
     if level_size == 0
@@ -158,6 +158,20 @@ end
         sp.inds_to_level[idx_other] = idx_in_level
     end
     pop!(bucket)
+end
+
+function Base.empty!(sp::DynamicSampler)
+    @inbounds for (i, bucket) in enumerate(sp.level_buckets)
+        sp.level_max[i] = 0.0
+        sp.level_weights[i] = 0.0
+        @simd for j in bucket
+            sp.weights[j] = 0.0
+            sp.inds_to_level[j] = 0
+        end
+        empty!(bucket)
+    end
+    sp.totvalues[] = 0
+    sp.totweight[] = 0.0
 end
 
 Base.isempty(sp::DynamicSampler) = sp.totvalues[] == 0
