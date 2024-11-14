@@ -73,4 +73,18 @@
 
     chisq_test = ChisqTest(counts_est, ps_exact)
     @test pvalue(chisq_test) > 0.05
+
+    @test isempty(s4) == false
+    empty!(s4)
+    @test isempty(s4) == true
+
+    push!(s4, 1, 1.0)
+    push!(s4, 2, 2.0)
+    samples_counts = countmap([rand(s4) for _ in 1:10^4])
+    counts_est = [samples_counts[1], samples_counts[2]]
+    ps_exact = [1/3, 2/3]
+    @test pvalue(chisq_test) > 0.05
+
+    pop!(s4, 2)
+    @test unique([rand(s4) for _ in 1:10^3]) == [1]
 end
