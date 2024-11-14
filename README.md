@@ -71,9 +71,9 @@ julia> function static_sample_without_replacement(rng, inds, weights, n)
        end
 ```
 
-let's look at two benchmarks which depict the worst case scenario
-where the dynamic methods are used statically. We will use a small 
-and a big `n` in respect to the number of indices
+let's look at some benchmarks in respect to `StatsBase.jl` which depict the
+worst case scenario where the dynamic methods are used statically. We
+will use a small and a big `n` in respect to the number of indices
 
 ```julia
 julia> using StatsBase, Random, BenchmarkTools
@@ -89,28 +89,20 @@ julia> n_small = 10^2
 julia> n_big = 5*10^5
 
 julia> t1_d = @benchmark static_sample_with_replacement($rng, $inds, $weights, $n_small);
-  19.516 ms (65 allocations: 17.17 MiB)
 
 julia> t1_s = @benchmark sample($rng, $inds, $(Weights(weights)), $n_small; replace=true);
-  6.559 ms (9 allocations: 30.52 MiB)
 
 julia> t2_d = @benchmark static_sample_with_replacement($rng, $inds, $weights, $n_big);
-  51.057 ms (66 allocations: 20.99 MiB)
 
 julia> t2_s = @benchmark sample($rng, $inds, $(Weights(weights)), $n_big; replace=true);
-  18.868 ms (10 allocations: 34.33 MiB)
 
 julia> t3_d = @benchmark static_sample_without_replacement($rng, $inds, $weights, $n_small);
-  19.465 ms (65 allocations: 17.17 MiB)
 
 julia> t3_s = @benchmark sample($rng, $inds, $(Weights(weights)), $n_small; replace=false);
-  1.009 ms (2 allocations: 2.64 KiB)
 
 julia> t4_d = @benchmark static_sample_without_replacement($rng, $inds, $weights, $n_big);
-  53.623 ms (66 allocations: 20.99 MiB)
 
 julia> t4_s = @benchmark sample($rng, $inds, $(Weights(weights)), $n_big; replace=false);
-  194.627 ms (4 allocations: 11.44 MiB)
 
 julia> using StatsPlots
 
@@ -126,8 +118,9 @@ julia> groupedbar(
 
 <img src="https://github.com/user-attachments/assets/7941a7bf-6479-4b8c-8e47-1daea6984982" width="500" />
 
-which can give an idea of the performance of the methods. In particular the dynamic versions
-are quite competitive when `n` is big even in this worst case analysis.
+
+From the figure, we can conclude that the dynamic versions are quite competitive when `n` is big even
+in this worst case analysis.
 
 
 
