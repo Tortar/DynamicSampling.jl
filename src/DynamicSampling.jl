@@ -126,6 +126,8 @@ end
     return info == false ? idx : IndexInfo(idx, weight, level, idx_in_level)
 end
 
+@inline Base.rand(sp::DynamicSampler, n::Integer; info = false) = [rand(sp; info) for _ in 1:n]
+
 @inline function Base.delete!(sp::DynamicSampler, idx)
     weight = sp.weights[idx]
     level = getlevel(Int(first(sp.level_inds)), weight)
