@@ -5,7 +5,7 @@
 
 This package implements efficient samplers which can be used to sample from
 a dynamic discrete distribution, represented by a set of pairs of indices and
-weights supporting removal, addition and sampling of elements in constant time.
+weights, supporting removal, addition and sampling of elements in constant time.
 
 # Example
 
