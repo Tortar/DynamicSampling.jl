@@ -3,6 +3,7 @@
 `DynamicSampler` supports these basic operations:
 
 - `Base.rand(sp::DynamicSampler)`: samples an index according to weights.
+- `Base.rand(sp::DynamicSampler, n)`: samples `n` indices according to weights.
 - `Base.push!(sp::DynamicSampler, idx, weight)`: adds a new index to the sampler.
 - `Base.append!(sp::DynamicSampler, indices, weights)`: adds a collection of indices to the sampler.
 - `Base.delete!(sp::DynamicSampler, idx)`: removes an index from the sampler.
