@@ -85,6 +85,6 @@
     ps_exact = [1/3, 2/3]
     @test pvalue(chisq_test) > 0.05
 
-    pop!(s4, 2)
+    delete!(s4, 2)
     @test unique([rand(s4) for _ in 1:10^3]) == [1]
 end
