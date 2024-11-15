@@ -1,5 +1,3 @@
-# Based on https://www.aarondefazio.com/tangentially/?p=58
-# and https://github.com/adefazio/sampler
 
 module DynamicSampling
 
@@ -8,6 +6,8 @@ export allinds
 
 using Random
 
+# Inspired by https://www.aarondefazio.com/tangentially/?p=58
+# and https://github.com/adefazio/sampler
 struct DynamicSampler{R}
     rng::R
     totvalues::Base.RefValue{Int}
@@ -48,7 +48,7 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     sp.weights[idx] != 0.0 && error()
     sp.totweight[] += weight
     sp.totvalues[] += 1
-    level_raw = ceil(Int, log2(weight))
+    level_raw = fast_ceil_log2(weight)
     createlevel!(sp, level_raw)
     level = level_raw - Int(first(sp.level_inds)) + 1
     sp.level_max[level] = max(sp.level_max[level], weight)
@@ -67,7 +67,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     resize_w!(sp, maximum(inds))
     @inbounds for (i, w) in enumerate(weights)
         sp.weights[i] != 0.0 && error()
-        level_raw = ceil(Int, log2(w))
+        level_raw = fast_ceil_log2(w)
         createlevel!(sp, level_raw, nlevels)
         level = level_raw - Int(first(sp.level_inds)) + 1
         sp.level_max[level] = max(sp.level_max[level], w)
@@ -76,7 +76,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         sp.weights[i] = w
         sumweights += w
         sp.totvalues[] += 1
-        levs[i] = ceil(Int, level_raw)
+        levs[i] = level_raw
     end
     sp.totweight[] += sumweights
     @inbounds for (i, bucket) in enumerate(sp.level_buckets)
@@ -230,6 +230,29 @@ end
     return sp
 end
 
-getlevel(minlevel, weight) = ceil(Int, log2(weight)) - minlevel + 1
+getlevel(minlevel, weight) = fast_ceil_log2(weight) - minlevel + 1
+
+fast_ceil_log2(x) = ceil(Int, log2(x))
+function fast_ceil_log2(x::Float64)
+    x <= 0.0 && error()
+    x_bits = reinterpret(UInt64, x)
+    # Extract the exponent part (bits 52-62 in IEEE 754 double-precision)
+    exponent = Int((x_bits >> 52) & 0x7FF) - 1023
+    return exponent + Int((x_bits & 0xFFFFFFFFFFFFF) != 0)
+end
+function fast_ceil_log2(x::Float32)
+    x <= 0.0f0 && error()
+    x_bits = reinterpret(UInt32, x)
+    # Extract the exponent part (bits 23-30 in IEEE 754 single-precision)
+    exponent = Int((x_bits >> 23) & 0xFF) - 127
+    return exponent + Int((x_bits & 0x7FFFFF) != 0)
+end
+function fast_ceil_log2(x::Float16)
+    x <= Float16(0.0) && error()
+    x_bits = reinterpret(UInt16, x)
+    # Extract the exponent part (bits 10-14 in IEEE 754 half-precision)
+    exponent = Int((x_bits >> 10) & 0x1F) - 15
+    return exponent + Int((x_bits & 0x3FF) != 0)
+end
 
 end
