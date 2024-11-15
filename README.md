@@ -116,10 +116,9 @@ julia> groupedbar(
        )
 ```
 
-<img src="https://github.com/user-attachments/assets/7941a7bf-6479-4b8c-8e47-1daea6984982" width="500" />
+<img src="https://github.com/user-attachments/assets/77c23c51-9452-4e31-ad1c-33bb2aa9c622" width="500" />
 
-
-From the figure, we can conclude that the dynamic versions are quite competitive when `n` is big even
+From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
 
 
