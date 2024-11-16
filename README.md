@@ -111,16 +111,12 @@ julia> times_static = mean.([t1_s.times, t2_s.times, t3_s.times, t4_s.times]) ./
 julia> times_dynamic = mean.([t1_d.times, t2_d.times, t3_d.times, t4_d.times]) ./ 10^6
 
 julia> groupedbar(
-           ["small sample wr", "big sample wr", "small sample wor", "big sample wor"],
-           [times_static times_dynamic], ylabel="time (ms)", labels=["static" "dynamic"]
+           ["small wr", "big wr", "small wor", "big wor"], [times_static times_dynamic], 
+           ylabel="time (ms)", labels=["static" "dynamic"], dpi=1200
        )
 ```
 
-<img src="https://github.com/user-attachments/assets/eabaab9f-d38d-4a3c-b4fc-bb963d116643" width="500" />
+<img src="https://github.com/user-attachments/assets/20381d25-7901-4730-8b79-0064b9631fad" width="500" />
 
 From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
-
-
-
-
