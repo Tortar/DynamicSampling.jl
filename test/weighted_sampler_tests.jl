@@ -31,7 +31,7 @@
     delete!(s2, e2)
     @test all(x -> x != e1.idx && x != e2.idx && 1 <= x <= b, [rand(s2) for _ in 1:10^3])
 
-    rng = StableRNG(41)
+    rng = StableRNG(42)
 
     s3 = DynamicSampler(rng)
     append!(s3, range, weights2)
