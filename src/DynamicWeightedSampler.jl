@@ -1,3 +1,4 @@
+
 # Inspired by https://www.aarondefazio.com/tangentially/?p=58
 # and https://github.com/adefazio/sampler
 struct DynamicSampler{R}
@@ -91,7 +92,13 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     return sp
 end
 
+@inline Base.@constprop :aggressive function Base.rand(sp::DynamicSampler, n::Integer; info = false)
+    return info == true ? [_rand(sp) for _ in 1:n] : [_rand(sp).idx for _ in 1:n]
+end
 @inline Base.@constprop :aggressive function Base.rand(sp::DynamicSampler; info = false)
+    return info == true ? _rand(sp) : _rand(sp).idx
+end
+@inline function _rand(sp::DynamicSampler)
     local level, idx, idx_in_level, weight
     # Sample a level using the CDF method
     u = rand(sp.rng) * sp.totweight[]
@@ -113,7 +120,7 @@ end
         level, bucket = first(Iterators.drop(notempty, rand_notempty-1))
         level_size = length(bucket)
     end
-    level_max = sp.level_max[level]
+    level_max = sp.level_max[level]      
     # Now sample within the level using rejection sampling
     @inbounds while true
         idx_in_level = rand(sp.rng, 1:level_size)
@@ -121,10 +128,8 @@ end
         weight = sp.weights[idx]
         rand(sp.rng) * level_max <= weight && break
     end
-    return info == false ? idx : IndexInfo(idx, weight, level, idx_in_level)
+    return IndexInfo(idx, weight, level, idx_in_level)
 end
-
-@inline Base.rand(sp::DynamicSampler, n::Integer; info = false) = [rand(sp; info) for _ in 1:n]
 
 function Base.delete!(sp::DynamicSampler, indices::Union{Vector{IndexInfo}, Vector{<:Integer}})
     for i in indices
@@ -134,7 +139,7 @@ function Base.delete!(sp::DynamicSampler, indices::Union{Vector{IndexInfo}, Vect
 end
 @inline function Base.delete!(sp::DynamicSampler, idx::Integer)
     weight = sp.weights[idx]
-    level = getlevel(Int(sp.level_inds[1]), weight)
+    level = fast_ceil_log2(weight) - Int(sp.level_inds[1]) + 1
     if isempty(sp.inds_to_level)
         resize!(sp.inds_to_level, length(sp.weights))
         for bucket in sp.level_buckets
@@ -233,8 +238,6 @@ end
     end
     return sp
 end
-
-getlevel(minlevel, weight) = fast_ceil_log2(weight) - minlevel + 1
 
 fast_ceil_log2(x) = ceil(Int, log2(x))
 function fast_ceil_log2(x::Float64)
