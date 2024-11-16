@@ -22,14 +22,13 @@ end
 
 DynamicSampler() = DynamicSampler(Random.default_rng())
 function DynamicSampler(rng)
-    totweight = 0.0
     weights = Float64[]
     level_weights = Float64[0.0]
     level_buckets = [Int[],]
     level_max = Float64[0.0]
     level_inds = Int16[]
     inds_to_level = Int[]
-    return DynamicSampler(rng, Ref(0), Ref(totweight), weights, level_weights, 
+    return DynamicSampler(rng, Ref(0), Ref(0.0), weights, level_weights, 
         level_buckets, level_max, level_inds, inds_to_level)
 end
 
@@ -43,53 +42,59 @@ IndexInfo(idx, weight) = IndexInfo(idx, weight, 0, 0)
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 
-@inline function Base.push!(sp::DynamicSampler, idx, weight)
+@inline function Base.push!(sp::DynamicSampler, idx, w)
     resize_w!(sp, idx)
     sp.weights[idx] != 0.0 && error()
-    sp.totweight[] += weight
+    sp.totweight[] += w
     sp.totvalues[] += 1
-    level_raw = fast_ceil_log2(weight)
+    level_raw = fast_ceil_log2(w)
     createlevel!(sp, level_raw)
-    level = level_raw - Int(first(sp.level_inds)) + 1
-    sp.level_max[level] = max(sp.level_max[level], weight)
-    sp.level_weights[level] += weight
+    level = level_raw - Int(sp.level_inds[1]) + 1
+    prev_w_max = sp.level_max[level]
+    sp.level_max[level] = w > prev_w_max ? w : prev_w_max
+    sp.level_weights[level] += w
     bucket = sp.level_buckets[level]
     push!(bucket, idx)
     !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = length(bucket))
-    sp.weights[idx] = weight
+    sp.weights[idx] = w
     return sp
 end
 
 function Base.append!(sp::DynamicSampler, inds, weights)
     nlevels = zeros(Int, length(sp.level_buckets))
     sumweights = 0.0
-    levs = zeros(Int16, length(inds))
+    sumvalues = 0
+    levs = Vector{Int16}(undef, length(inds))
     resize_w!(sp, maximum(inds))
     @inbounds for (i, w) in enumerate(weights)
         sp.weights[i] != 0.0 && error()
         level_raw = fast_ceil_log2(w)
         createlevel!(sp, level_raw, nlevels)
-        level = level_raw - Int(first(sp.level_inds)) + 1
-        sp.level_max[level] = max(sp.level_max[level], w)
+        level = level_raw - Int(sp.level_inds[1]) + 1
+        prev_w_max = sp.level_max[level]
+        sp.level_max[level] = w > prev_w_max ? w : prev_w_max
         nlevels[level] += 1
         sp.level_weights[level] += w
         sp.weights[i] = w
         sumweights += w
-        sp.totvalues[] += 1
-        levs[i] = level_raw
+        sumvalues += 1
+        levs[i] = Int16(level_raw)
     end
     sp.totweight[] += sumweights
-    @inbounds for (i, bucket) in enumerate(sp.level_buckets)
-        resize!(bucket, length(bucket) + nlevels[i])
-        nlevels[i] = length(bucket)
+    sp.totvalues[] += sumvalues
+    @inbounds @simd for i in 1:length(sp.level_buckets)
+        bucket = sp.level_buckets[i]
+        bucket_length = length(bucket)
+        resize!(bucket, bucket_length + nlevels[i])
+        nlevels[i] = bucket_length
     end
+    offset_level = Int(sp.level_inds[1]) - 1
     @inbounds for (i, id) in enumerate(inds)
-        level_raw = levs[i]
-        level = level_raw - Int(first(sp.level_inds)) + 1
+        level = Int(levs[i]) - offset_level
         bucket = sp.level_buckets[level]
+        nlevels[level] += 1
         bucket[nlevels[level]] = id
         !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = nlevels[level])
-        nlevels[level] -= 1
     end
     return sp
 end
@@ -110,12 +115,13 @@ end
     bucket = sp.level_buckets[level]
     level_size = length(bucket)
     if level_size == 0
-        notempty = findall(b -> length(b) > 0, sp.level_buckets)
-        level = rand(sp.rng, notempty)
-        bucket = sp.level_buckets[level]
+        n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
+        rand_notempty = rand(sp.rng, 1:n_notempty)
+        notempty = ((i,b) for (i,b) in enumerate(sp.level_buckets) if length(b) > 0)
+        level, bucket = first(Iterators.drop(notempty, rand_notempty-1))
         level_size = length(bucket)
     end
-    level_max = sp.level_max[level]      
+    level_max = sp.level_max[level]
     # Now sample within the level using rejection sampling
     @inbounds while true
         idx_in_level = rand(sp.rng, 1:level_size)
@@ -128,9 +134,15 @@ end
 
 @inline Base.rand(sp::DynamicSampler, n::Integer; info = false) = [rand(sp; info) for _ in 1:n]
 
-@inline function Base.delete!(sp::DynamicSampler, idx)
+function Base.delete!(sp::DynamicSampler, indices::Union{Vector{IndexInfo}, Vector{<:Integer}})
+    for i in indices
+        delete!(sp, i)
+    end
+    return sp
+end
+@inline function Base.delete!(sp::DynamicSampler, idx::Integer)
     weight = sp.weights[idx]
-    level = getlevel(Int(first(sp.level_inds)), weight)
+    level = getlevel(Int(sp.level_inds[1]), weight)
     if isempty(sp.inds_to_level)
         resize!(sp.inds_to_level, length(sp.weights))
         for bucket in sp.level_buckets
