@@ -74,7 +74,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     end
     sp.totweight[] += sumweights
     sp.totvalues[] += sumvalues
-    @inbounds @simd for i in 1:length(sp.level_buckets)
+    @inbounds for i in 1:length(sp.level_buckets)
         bucket = sp.level_buckets[i]
         bucket_length = length(bucket)
         resize!(bucket, bucket_length + nlevels[i])
