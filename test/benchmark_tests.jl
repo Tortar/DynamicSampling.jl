@@ -3,20 +3,18 @@ using BenchmarkTools
 
 function b1(rng, n)
     s = DynamicSampler(rng)
-    sizehint!(s, n)
     append!(s, 1:n, (rand(rng) for _ in 1:n))
     t = 0
     for i in 1:n-1
-        e = rand(s; info=true)
-        t += e.idx
-        delete!(s, e)
+        idx = rand(s)
+        delete!(s, idx)
+        t += idx
     end
     return t
 end
 
 function b2(rng, n)
     s = DynamicSampler(rng)
-    sizehint!(s, n)
     for i in 1:n
         push!(s, i, rand(rng))
     end
@@ -24,8 +22,9 @@ function b2(rng, n)
     for i in 1:n-1
         idx = rand(s)
         t += idx
-        delete!(s, idx)
     end
+    delete!(s, 1:div(n,2))
+    delete!(s, div(n,2)+2:n)
     return t
 end
 
