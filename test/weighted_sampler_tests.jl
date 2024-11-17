@@ -26,6 +26,9 @@
 
     e1 = rand(s2)
     e2 = rand(s2)
+    while e2 == e1
+        e2 = rand(s2)
+    end
 
     delete!(s2, e1)
     delete!(s2, e2)
