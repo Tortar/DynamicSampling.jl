@@ -1,10 +1,19 @@
 
 # Inspired by https://www.aarondefazio.com/tangentially/?p=58
 # and https://github.com/adefazio/sampler
+
+mutable struct DynamicInfo
+    totvalues::Int
+    totweight::Float64
+    idx::Int
+    weight::Float64
+    level::Int16
+    idx_in_level::Int
+end
+
 struct DynamicSampler{R}
     rng::R
-    totvalues::Base.RefValue{Int}
-    totweight::Base.RefValue{Float64}
+    info::DynamicInfo
     weights::Vector{Float64}
     level_weights::Vector{Float64}
     level_buckets::Vector{Vector{Int}}
@@ -21,25 +30,19 @@ function DynamicSampler(rng)
     level_max = Float64[0.0]
     level_inds = Int16[]
     inds_to_level = Int[]
-    return DynamicSampler(rng, Ref(0), Ref(0.0), weights, level_weights, 
-        level_buckets, level_max, level_inds, inds_to_level)
+    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0),
+        weights, level_weights, level_buckets, level_max, level_inds, 
+        inds_to_level)
 end
-
-struct IndexInfo
-    idx::Int
-    weight::Float64
-    level::Int
-    idx_in_level::Int
-end
-IndexInfo(idx, weight) = IndexInfo(idx, weight, 0, 0)
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 
 @inline function Base.push!(sp::DynamicSampler, idx, w)
+    sp.info.idx = 0
     resize_w!(sp, idx)
     sp.weights[idx] != 0.0 && error()
-    sp.totweight[] += w
-    sp.totvalues[] += 1
+    sp.info.totweight += w
+    sp.info.totvalues += 1
     level_raw = fast_ceil_log2(w)
     createlevel!(sp, level_raw)
     level = level_raw - Int(sp.level_inds[1]) + 1
@@ -54,6 +57,7 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 end
 
 function Base.append!(sp::DynamicSampler, inds, weights)
+    sp.info.idx = 0
     nlevels = zeros(Int, length(sp.level_buckets))
     sumweights = 0.0
     sumvalues = 0
@@ -73,8 +77,8 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         sumvalues += 1
         levs[i] = Int16(level_raw)
     end
-    sp.totweight[] += sumweights
-    sp.totvalues[] += sumvalues
+    sp.info.totweight += sumweights
+    sp.info.totvalues += sumvalues
     @inbounds @simd for i in 1:length(sp.level_buckets)
         bucket = sp.level_buckets[i]
         bucket_length = length(bucket)
@@ -92,16 +96,11 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     return sp
 end
 
-@inline Base.@constprop :aggressive function Base.rand(sp::DynamicSampler, n::Integer; info = false)
-    return info == true ? [_rand(sp) for _ in 1:n] : [_rand(sp).idx for _ in 1:n]
-end
-@inline Base.@constprop :aggressive function Base.rand(sp::DynamicSampler; info = false)
-    return info == true ? _rand(sp) : _rand(sp).idx
-end
-@inline function _rand(sp::DynamicSampler)
+Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
+@inline function Base.rand(sp::DynamicSampler)
     local level, idx, idx_in_level, weight
     # Sample a level using the CDF method
-    u = rand(sp.rng) * sp.totweight[]
+    u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
     level = length(sp.level_weights)
     for i in reverse(eachindex(sp.level_weights))
@@ -128,39 +127,43 @@ end
         weight = sp.weights[idx]
         rand(sp.rng) * level_max <= weight && break
     end
-    return IndexInfo(idx, weight, level, idx_in_level)
+    sp.info.idx = idx
+    sp.info.weight = weight
+    sp.info.level = Int16(level)
+    sp.info.idx_in_level = idx_in_level
+    return idx
 end
 
-function Base.delete!(sp::DynamicSampler, indices::Union{Vector{IndexInfo}, Vector{<:Integer}})
+function Base.delete!(sp::DynamicSampler, indices::Union{UnitRange, Vector{<:Integer}})
     for i in indices
         delete!(sp, i)
     end
     return sp
 end
 @inline function Base.delete!(sp::DynamicSampler, idx::Integer)
-    weight = sp.weights[idx]
-    level = fast_ceil_log2(weight) - Int(sp.level_inds[1]) + 1
-    if isempty(sp.inds_to_level)
-        resize!(sp.inds_to_level, length(sp.weights))
-        for bucket in sp.level_buckets
-            for (i, idx) in enumerate(bucket)
-                sp.inds_to_level[idx] = i
+    if sp.info.idx == idx
+        _delete!(sp, idx, sp.info.weight, Int(sp.info.level), sp.info.idx_in_level)
+    else
+        weight = sp.weights[idx]
+        level = fast_ceil_log2(weight) - Int(sp.level_inds[1]) + 1
+        if isempty(sp.inds_to_level)
+            resize!(sp.inds_to_level, length(sp.weights))
+            for bucket in sp.level_buckets
+                for (i, idx) in enumerate(bucket)
+                    sp.inds_to_level[idx] = i
+                end
             end
         end
+        idx_in_level = sp.inds_to_level[idx]
+        _delete!(sp, idx, weight, level, idx_in_level)
     end
-    idx_in_level = sp.inds_to_level[idx]
-    _delete!(sp, idx, weight, level, idx_in_level)
-    return sp
-end
-@inline function Base.delete!(sp::DynamicSampler, e::IndexInfo)
-    idx, weight, level, idx_in_level = e.idx, e.weight, e.level, e.idx_in_level
-    _delete!(sp, idx, weight, level, idx_in_level)
     return sp
 end
 @inline function _delete!(sp, idx, weight, level, idx_in_level)
+    sp.info.idx = 0
     sp.weights[idx] = 0.0
-    sp.totvalues[] -= 1
-    sp.totweight[] -= weight
+    sp.info.totvalues -= 1
+    sp.info.totweight -= weight
     sp.level_weights[level] -= weight
     bucket = sp.level_buckets[level]
     bucket[idx_in_level], bucket[end] = bucket[end], bucket[idx_in_level]
@@ -181,11 +184,13 @@ function Base.empty!(sp::DynamicSampler)
         end
         empty!(bucket)
     end
-    sp.totvalues[] = 0
-    sp.totweight[] = 0.0
+    sp.info.totvalues = 0
+    sp.info.totweight = 0.0
+    sp.info.idx = 0
 end
 
-Base.isempty(sp::DynamicSampler) = sp.totvalues[] == 0
+Base.in(idx::Integer, sp::DynamicSampler) = sp.weights[idx] != 0.0
+Base.isempty(sp::DynamicSampler) = sp.info.totvalues == 0
 
 allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
 
@@ -198,10 +203,6 @@ end
 function Base.show(io::IO, mime::MIME"text/plain", sp::DynamicSampler)
     inds = allinds(sp)
     print("DynamicSampler(indices = $(inds), weights = $(sp.weights[inds]))")
-end
-
-function Base.show(io::IO, mime::MIME"text/plain", di::IndexInfo)
-    print("IndexInfo(idx = $(di.idx), weight = $(di.weight))")
 end
 
 @inline function resize_w!(sp, N)

@@ -24,12 +24,13 @@
     @test sort!(allinds(s2)) == collect(range)
     @test all(x -> 1 <= x <= b, [rand(s2) for _ in 1:10^3])
 
-    e1 = rand(s2; info=true)
-    e2 = rand(s2; info=true)
+    e1 = rand(s2)
+    e2 = rand(s2)
 
     delete!(s2, e1)
     delete!(s2, e2)
-    @test all(x -> x != e1.idx && x != e2.idx && 1 <= x <= b, [rand(s2) for _ in 1:10^3])
+
+    @test all(x -> x != e1 && x != e2 && 1 <= x <= b, [rand(s2) for _ in 1:10^3])
 
     rng = StableRNG(42)
 
