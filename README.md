@@ -29,19 +29,6 @@ julia> delete!(sampler, 8)
 DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 9, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 9.0, 10.0])
 ```
 
-If you happen to require to remove already sampled elements, 
-you can use instead
-
-```julia
-julia> i = rand(sampler; info=true)
-IndexInfo(idx = 9, weight = 9.0)
-
-julia> delete!(sampler, i)
-DynamicSampler(indices = [1, 2, 3, 4, 5, 6, 7, 10], weights = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0])
-```
-
-which is a bit more efficient than removing not sampled indices.
-
 # Benchmark
 
 We can try to compare this method with the equivalent static methods from StatsBase.jl
@@ -63,9 +50,9 @@ julia> function static_sample_without_replacement(rng, inds, weights, n)
            append!(sp, inds, weights)
            s = Vector{Int}(undef, n)
            for i in eachindex(s)
-               e = rand(sp; info=true)
-               s[i] = e.idx
-               delete!(sp, e)
+               idx = rand(sp)
+               delete!(sp, idx)
+               s[i] = idx
            end
            return s
        end
@@ -116,7 +103,7 @@ julia> groupedbar(
        )
 ```
 
-<img src="https://github.com/user-attachments/assets/20381d25-7901-4730-8b79-0064b9631fad" width="500" />
+<img src="https://github.com/user-attachments/assets/eabaab9f-d38d-4a3c-b4fc-bb963d116643" width="500" />
 
 From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
