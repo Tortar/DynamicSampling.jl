@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Tortar/DynamicSampling.jl/workflows/CI/badge.svg)](https://github.com/Tortar/DynamicSampling.jl/actions?query=workflow%3ACI)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://tortar.github.io/DynamicSampling.jl/stable/)
+[![codecov](https://codecov.io/gh/Tortar/DynamicSampling.jl/graph/badge.svg?token=F8W0MC53Z0)](https://codecov.io/gh/Tortar/DynamicSampling.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 This package implements efficient samplers which can be used to sample from
