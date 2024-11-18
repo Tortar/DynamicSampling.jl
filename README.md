@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Tortar/DynamicSampling.jl/workflows/CI/badge.svg)](https://github.com/Tortar/DynamicSampling.jl/actions?query=workflow%3ACI)
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://tortar.github.io/DynamicSampling.jl/stable/)
+[![codecov](https://codecov.io/gh/Tortar/DynamicSampling.jl/graph/badge.svg?token=F8W0MC53Z0)](https://codecov.io/gh/Tortar/DynamicSampling.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 This package implements efficient samplers which can be used to sample from
@@ -103,7 +104,7 @@ julia> groupedbar(
        )
 ```
 
-<img src="https://github.com/user-attachments/assets/699694c2-5cb2-41e8-835b-d1f1a85568dc" width="500" />
+<img src="https://github.com/user-attachments/assets/63257ee2-4f01-4b45-9eca-fe718e0f6916" width="500" />
 
 From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
