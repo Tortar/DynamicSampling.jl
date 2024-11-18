@@ -98,7 +98,6 @@ end
 
 Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
 @inline function Base.rand(sp::DynamicSampler)
-    local level, idx, idx_in_level, weight
     # Sample a level using the CDF method
     u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
@@ -121,11 +120,19 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
     end
     level_max = sp.level_max[level]      
     # Now sample within the level using rejection sampling
-    @inbounds while true
-        idx_in_level = rand(sp.rng, 1:level_size)
+    u = rand(sp.rng) * level_size
+    intu = unsafe_trunc(Int, u)
+    fracu = u - intu
+    idx_in_level = intu + 1
+    idx = bucket[idx_in_level]
+    weight = sp.weights[idx]
+    @inbounds while fracu * level_max > weight
+        u = rand(sp.rng) * level_size
+        intu = unsafe_trunc(Int, u)
+        fracu = u - intu
+        idx_in_level = intu + 1
         idx = bucket[idx_in_level]
         weight = sp.weights[idx]
-        rand(sp.rng) * level_max <= weight && break
     end
     sp.info.idx = idx
     sp.info.weight = weight
