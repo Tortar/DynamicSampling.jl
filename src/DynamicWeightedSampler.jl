@@ -2,6 +2,8 @@
 # Inspired by https://www.aarondefazio.com/tangentially/?p=58
 # and https://github.com/adefazio/sampler
 
+abstract type AbstractDynamicSampler end
+
 mutable struct DynamicInfo
     totvalues::Int
     totweight::Float64
@@ -11,7 +13,7 @@ mutable struct DynamicInfo
     idx_in_level::Int
 end
 
-struct DynamicSampler{R}
+struct DenseDynamicSampler{R} <: AbstractDynamicSampler
     rng::R
     info::DynamicInfo
     weights::Vector{Float64}
@@ -22,22 +24,31 @@ struct DynamicSampler{R}
     inds_to_level::Vector{Int}
 end
 
-DynamicSampler() = DynamicSampler(Random.default_rng())
-function DynamicSampler(rng)
-    weights = Float64[]
-    level_weights = Float64[0.0]
-    level_buckets = [Int[],]
-    level_max = Float64[0.0]
-    level_inds = Int16[]
-    inds_to_level = Int[]
-    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0),
-        weights, level_weights, level_buckets, level_max, level_inds, 
-        inds_to_level)
+struct SparseDynamicSampler{R} <: AbstractDynamicSampler
+    rng::R
+    info::DynamicInfo
+    inds::Vector{Int}
+    weights::Vector{Float64}
+    level_weights::Vector{Float64}
+    level_buckets::Vector{Vector{Int}}
+    level_max::Vector{Float64}
+    level_inds::Vector{Int16}
+    inds_to_level::Vector{Int}
 end
 
-Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
+DynamicSampler(; dense=true) = DynamicSampler(Random.default_rng(); dense)
+Base.@constprop :aggressive function DynamicSampler(rng; dense=true)
+    if dense
+        return DenseDynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0), 
+            Float64[], [0.0], [Int[],], [0.0], Int16[], Int[])
+    else
+        return SparseDynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0), 
+            Int[], Float64[], [0.0], [Int[],], [0.0], Int16[], Int[])
+end
 
-@inline function Base.push!(sp::DynamicSampler, idx, w)
+Base.sizehint!(sp::AbstractDynamicSampler, N) = resize_w!(sp, N)
+
+@inline function Base.push!(sp::AbstractDynamicSampler, idx, w)
     sp.info.idx = 0
     resize_w!(sp, idx)
     sp.weights[idx] != 0.0 && error()
@@ -56,7 +67,7 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     return sp
 end
 
-function Base.append!(sp::DynamicSampler, inds, weights)
+function Base.append!(sp::AbstractDynamicSampler, inds, weights)
     sp.info.idx = 0
     nlevels = zeros(Int, length(sp.level_buckets))
     sumweights = 0.0
@@ -96,8 +107,8 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     return sp
 end
 
-Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
-@inline function Base.rand(sp::DynamicSampler)
+Base.rand(sp::AbstractDynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
+@inline function Base.rand(sp::AbstractDynamicSampler)
     # Sample a level using the CDF method
     u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
@@ -141,13 +152,13 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
     return idx
 end
 
-function Base.delete!(sp::DynamicSampler, indices::Union{UnitRange, Vector{<:Integer}})
+function Base.delete!(sp::AbstractDynamicSampler, indices::Union{UnitRange, Vector{<:Integer}})
     for i in indices
         delete!(sp, i)
     end
     return sp
 end
-@inline function Base.delete!(sp::DynamicSampler, idx::Integer)
+@inline function Base.delete!(sp::AbstractDynamicSampler, idx::Integer)
     if sp.info.idx == idx
         _delete!(sp, idx, sp.info.weight, Int(sp.info.level), sp.info.idx_in_level)
     else
@@ -181,7 +192,7 @@ end
     pop!(bucket)
 end
 
-function Base.empty!(sp::DynamicSampler)
+function Base.empty!(sp::AbstractDynamicSampler)
     @inbounds for (i, bucket) in enumerate(sp.level_buckets)
         sp.level_max[i] = 0.0
         sp.level_weights[i] = 0.0
@@ -196,18 +207,18 @@ function Base.empty!(sp::DynamicSampler)
     sp.info.idx = 0
 end
 
-Base.in(idx::Integer, sp::DynamicSampler) = sp.weights[idx] != 0.0
+Base.in(idx::Integer, sp::AbstractDynamicSampler) = sp.weights[idx] != 0.0
 Base.isempty(sp::DynamicSampler) = sp.info.totvalues == 0
 
-allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
+allinds(sp::AbstractDynamicSampler) = reduce(vcat, sp.level_buckets)
 
-@inline function Base.setindex!(sp::DynamicSampler, idx, new_weight)
+@inline function Base.setindex!(sp::AbstractDynamicSampler, idx, new_weight)
     delete!(sp, idx)
     push!(sp, idx, new_weight)
     return sp
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", sp::DynamicSampler)
+function Base.show(io::IO, mime::MIME"text/plain", sp::AbstractDynamicSampler)
     inds = allinds(sp)
     print("DynamicSampler(indices = $(inds), weights = $(sp.weights[inds]))")
 end
