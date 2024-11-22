@@ -44,6 +44,7 @@ Base.@constprop :aggressive function DynamicSampler(rng; dense=true)
     else
         return SparseDynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0), 
             Int[], Float64[], [0.0], [Int[],], [0.0], Int16[], Int[])
+    end
 end
 
 Base.sizehint!(sp::AbstractDynamicSampler, N) = resize_w!(sp, N)
