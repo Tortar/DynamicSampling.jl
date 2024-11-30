@@ -9,6 +9,8 @@ mutable struct DynamicInfo
     weight::Float64
     level::Int16
     idx_in_level::Int
+    level_min::Int
+    level_max::Int
 end
 
 struct DynamicSampler{R}
@@ -18,7 +20,6 @@ struct DynamicSampler{R}
     level_weights::Vector{Float64}
     level_buckets::Vector{Vector{Int}}
     level_max::Vector{Float64}
-    level_inds::Vector{Int16}
     inds_to_level::Vector{Int}
 end
 
@@ -28,11 +29,9 @@ function DynamicSampler(rng)
     level_weights = Float64[0.0]
     level_buckets = [Int[],]
     level_max = Float64[0.0]
-    level_inds = Int16[]
     inds_to_level = Int[]
-    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0),
-        weights, level_weights, level_buckets, level_max, level_inds, 
-        inds_to_level)
+    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0, typemax(Int), typemin(Int)),
+        weights, level_weights, level_buckets, level_max, inds_to_level)
 end
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
@@ -45,7 +44,7 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     sp.info.totvalues += 1
     level_raw = fast_ceil_log2(w)
     createlevel!(sp, level_raw)
-    level = level_raw - Int(sp.level_inds[1]) + 1
+    level = level_raw - sp.info.level_min + 1
     prev_w_max = sp.level_max[level]
     sp.level_max[level] = w > prev_w_max ? w : prev_w_max
     sp.level_weights[level] += w
@@ -67,7 +66,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         sp.weights[i] != 0.0 && error()
         level_raw = fast_ceil_log2(w)
         createlevel!(sp, level_raw, nlevels)
-        level = level_raw - Int(sp.level_inds[1]) + 1
+        level = level_raw - sp.info.level_min + 1
         prev_w_max = sp.level_max[level]
         sp.level_max[level] = w > prev_w_max ? w : prev_w_max
         nlevels[level] += 1
@@ -85,7 +84,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         resize!(bucket, bucket_length + nlevels[i])
         nlevels[i] = bucket_length
     end
-    offset_level = Int(sp.level_inds[1]) - 1
+    offset_level = sp.info.level_min - 1
     @inbounds for (i, id) in enumerate(inds)
         level = Int(levs[i]) - offset_level
         bucket = sp.level_buckets[level]
@@ -152,7 +151,7 @@ end
         _delete!(sp, idx, sp.info.weight, Int(sp.info.level), sp.info.idx_in_level)
     else
         weight = sp.weights[idx]
-        level = fast_ceil_log2(weight) - Int(sp.level_inds[1]) + 1
+        level = fast_ceil_log2(weight) - sp.info.level_min + 1
         if isempty(sp.inds_to_level)
             resize!(sp.inds_to_level, length(sp.weights))
             for bucket in sp.level_buckets
@@ -225,24 +224,25 @@ end
 end
 
 @inline function createlevel!(sp, level_w, nlevels=nothing)
-    if isempty(sp.level_inds)
-        push!(sp.level_inds, Int16(level_w))
-    elseif level_w > sp.level_inds[end]
-        for i in sp.level_inds[end]+1:level_w
+    if sp.info.level_min == typemax(Int)
+        sp.info.level_min = level_w
+        sp.info.level_max = level_w
+    elseif level_w > sp.info.level_max
+        for i in sp.info.level_max+1:level_w
             push!(sp.level_max, 0.0)
-            push!(sp.level_inds, Int16(i))
             push!(sp.level_buckets, Int[])
             push!(sp.level_weights, 0.0)
             !isnothing(nlevels) && push!(nlevels, 0)
         end
-    elseif level_w < sp.level_inds[begin]
-        for i in sp.level_inds[begin]-1:-1:level_w
+        sp.info.level_max = level_w
+    elseif level_w < sp.info.level_min
+        for i in sp.info.level_min-1:-1:level_w
             pushfirst!(sp.level_max, 0.0)
-            pushfirst!(sp.level_inds, Int16(i))
             pushfirst!(sp.level_buckets, Int[])
             pushfirst!(sp.level_weights, 0.0)
             !isnothing(nlevels) && pushfirst!(nlevels, 0)
         end
+        sp.info.level_min = level_w
     end
     return sp
 end
