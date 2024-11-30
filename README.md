@@ -104,7 +104,7 @@ julia> groupedbar(
        )
 ```
 
-<img src="https://github.com/user-attachments/assets/63257ee2-4f01-4b45-9eca-fe718e0f6916" width="500" />
+<img src="https://github.com/user-attachments/assets/35b5b1de-f00f-45e3-a3ec-a5a071deee91" width="500" />
 
 From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
