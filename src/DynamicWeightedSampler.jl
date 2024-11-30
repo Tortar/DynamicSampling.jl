@@ -135,7 +135,7 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
     end
     sp.info.idx = idx
     sp.info.weight = weight
-    sp.info.level = Int16(level)
+    sp.info.level = level
     sp.info.idx_in_level = idx_in_level
     return idx
 end
