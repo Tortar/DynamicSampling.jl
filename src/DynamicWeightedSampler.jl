@@ -7,7 +7,7 @@ mutable struct DynamicInfo
     totweight::Float64
     idx::Int
     weight::Float64
-    level::Int16
+    level::Int
     idx_in_level::Int
     level_min::Int
     level_max::Int
@@ -30,7 +30,7 @@ function DynamicSampler(rng)
     level_buckets = [Int[],]
     level_max = Float64[0.0]
     inds_to_level = Int[]
-    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, Int16(0), 0, typemax(Int), typemin(Int)),
+    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, 0, 0, typemax(Int), typemin(Int)),
         weights, level_weights, level_buckets, level_max, inds_to_level)
 end
 
@@ -148,7 +148,7 @@ function Base.delete!(sp::DynamicSampler, indices::Union{UnitRange, Vector{<:Int
 end
 @inline function Base.delete!(sp::DynamicSampler, idx::Integer)
     if sp.info.idx == idx
-        _delete!(sp, idx, sp.info.weight, Int(sp.info.level), sp.info.idx_in_level)
+        _delete!(sp, idx, sp.info.weight, sp.info.level, sp.info.idx_in_level)
     else
         weight = sp.weights[idx]
         level = fast_ceil_log2(weight) - sp.info.level_min + 1
