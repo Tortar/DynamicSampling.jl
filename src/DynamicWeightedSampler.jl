@@ -11,6 +11,7 @@ mutable struct DynamicInfo
     idx_in_level::Int
     level_min::Int
     level_max::Int
+    reorder::Int
 end
 
 struct DynamicSampler{R}
@@ -20,6 +21,7 @@ struct DynamicSampler{R}
     level_weights::Vector{Float64}
     level_buckets::Vector{Vector{Int}}
     level_max::Vector{Float64}
+    order_level::Vector{Int}
     inds_to_level::Vector{Int}
 end
 
@@ -27,11 +29,12 @@ DynamicSampler() = DynamicSampler(Random.default_rng())
 function DynamicSampler(rng)
     weights = Float64[]
     level_weights = Float64[0.0]
+    order_level = Int[1]
     level_buckets = [Int[],]
     level_max = Float64[0.0]
     inds_to_level = Int[]
-    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, 0, 0, typemax(Int), typemin(Int)),
-        weights, level_weights, level_buckets, level_max, inds_to_level)
+    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, 0, 0, typemax(Int), typemin(Int), 0),
+        weights, level_weights, level_buckets, level_max, order_level, inds_to_level)
 end
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
@@ -52,6 +55,10 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     push!(bucket, idx)
     !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = length(bucket))
     sp.weights[idx] = w
+    if length(sp.level_weights) > length(sp.order_level)
+        resize!(sp.order_level, length(sp.level_weights))
+        sp.order_level .= sortperm(sp.level_weights; order=Base.Reverse)
+    end
     return sp
 end
 
@@ -92,6 +99,10 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         bucket[nlevels[level]] = id
         !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = nlevels[level])
     end
+    if length(sp.level_weights) > length(sp.order_level)
+        resize!(sp.order_level, length(sp.level_weights))
+        sp.order_level .= sortperm(sp.level_weights; order=Base.Reverse)
+    end
     return sp
 end
 
@@ -101,7 +112,7 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
     u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
     level = length(sp.level_weights)
-    for i in reverse(eachindex(sp.level_weights))
+    @inbounds for i in sp.order_level
         cumulative_weight += sp.level_weights[i]
         if u < cumulative_weight
             level = i
@@ -166,6 +177,11 @@ end
     return sp
 end
 @inline function _delete!(sp, idx, weight, level, idx_in_level)
+    sp.info.reorder += 1
+    if sp.info.reorder > 10000
+        sp.info.reorder = 0
+        sp.order_level .= sortperm(sp.level_weights; order=Base.Reverse)
+    end
     sp.info.idx = 0
     sp.weights[idx] = 0.0
     sp.info.totvalues -= 1
