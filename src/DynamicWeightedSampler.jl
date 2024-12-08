@@ -1,7 +1,5 @@
 
 # Inspired by https://www.aarondefazio.com/tangentially/?p=58
-# and https://github.com/adefazio/sampler
-
 mutable struct DynamicInfo
     totvalues::Int
     totweight::Float64
@@ -57,7 +55,7 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     sp.weights[idx] = w
     if length(sp.level_weights) > length(sp.order_level)
         resize!(sp.order_level, length(sp.level_weights))
-        sp.order_level .= sortperm(sp.level_weights; order=Base.Reverse)
+        sortperm!(sp.order_level, sp.level_weights; rev=true)
     end
     return sp
 end
@@ -101,7 +99,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     end
     if length(sp.level_weights) > length(sp.order_level)
         resize!(sp.order_level, length(sp.level_weights))
-        sp.order_level .= sortperm(sp.level_weights; order=Base.Reverse)
+        sortperm!(sp.order_level, sp.level_weights; rev=true)
     end
     return sp
 end
@@ -180,7 +178,7 @@ end
     sp.info.reorder += 1
     if sp.info.reorder > 10000
         sp.info.reorder = 0
-        sp.order_level .= sortperm(sp.level_weights; rev=true)
+        sortperm!(sp.order_level, sp.level_weights; rev=true)
     end
     sp.info.idx = 0
     sp.weights[idx] = 0.0
