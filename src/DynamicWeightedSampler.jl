@@ -1,5 +1,6 @@
 
 # Inspired by https://www.aarondefazio.com/tangentially/?p=58
+
 mutable struct DynamicInfo
     totvalues::Int
     totweight::Float64
@@ -61,6 +62,12 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 end
 
 function Base.append!(sp::DynamicSampler, inds, weights)
+    for (i, w) in zip(inds, weights)
+        push!(sp, i, w)
+    end
+    return sp
+end
+function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray}, weights)
     sp.info.idx = 0
     nlevels = zeros(Int, length(sp.level_buckets))
     sumweights = 0.0
@@ -76,7 +83,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
         sp.level_max[level] = w > prev_w_max ? w : prev_w_max
         nlevels[level] += 1
         sp.level_weights[level] += w
-        sp.weights[i] = w
+        sp.weights[inds[i]] = w
         sumweights += w
         sumvalues += 1
         levs[i] = Int16(level_raw)
