@@ -180,7 +180,7 @@ end
     sp.info.reorder += 1
     if sp.info.reorder > 10000
         sp.info.reorder = 0
-        sp.order_level .= sortperm(sp.level_weights; order=Base.Reverse)
+        sp.order_level .= sortperm(sp.level_weights; rev=true)
     end
     sp.info.idx = 0
     sp.weights[idx] = 0.0
