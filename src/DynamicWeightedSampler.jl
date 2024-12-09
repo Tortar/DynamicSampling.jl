@@ -97,6 +97,55 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     end
     return sp
 end
+function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray}, 
+        weights::Union{UnitRange, AbstractArray})
+    sp.info.idx = 0
+    nlevels = zeros(Int, length(sp.level_buckets))
+    sumweights = 0.0
+    sumvalues = 0
+    levs = Vector{Int16}(undef, length(inds))
+    resize_w!(sp, maximum(inds))
+    @inbounds for (i, w) in enumerate(weights)
+        sp.weights_assigned[i] != false && error(lazy"index $(i) already in the sampler")
+        sp.weights_assigned[i] = true
+        level_raw = fast_ceil_log2(w)
+        createlevel!(sp, level_raw, nlevels)
+        level = level_raw - sp.info.level_min + 1
+        prev_w_max = sp.level_max[level]
+        sp.level_max[level] = w > prev_w_max ? w : prev_w_max
+        nlevels[level] += 1
+        sp.level_weights[level] += w
+        sumweights += w
+        sumvalues += 1
+        levs[i] = Int16(level_raw)
+        if !isempty(sp.inds_to_level)
+            sp.raw_levels[i] = Int16(level_raw)
+        end
+    end
+    sp.info.totweight += sumweights
+    sp.info.totvalues += sumvalues
+    @inbounds @simd for i in 1:length(sp.level_buckets)
+        bucket = sp.level_buckets[i]
+        bucket_length = length(bucket)
+        resize!(bucket, bucket_length + nlevels[i])
+        nlevels[i] = bucket_length
+    end
+    offset_level = sp.info.level_min - 1
+    @inbounds for (i, id) in enumerate(inds)
+        level = Int(levs[i]) - offset_level
+        bucket = sp.level_buckets[level]
+        nlevels[level] += 1
+        bucket[nlevels[level]] = (id, weights[i])
+        if !isempty(sp.inds_to_level)
+            sp.inds_to_level[i] = nlevels[level]
+        end
+    end
+    if length(sp.level_weights) > length(sp.order_level)
+        resize!(sp.order_level, length(sp.level_weights))
+        sortperm!(sp.order_level, sp.level_weights; rev=true)
+    end
+    return sp
+end
 
 Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
 @inline function Base.rand(sp::DynamicSampler)
