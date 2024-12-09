@@ -16,9 +16,10 @@ end
 struct DynamicSampler{R}
     rng::R
     info::DynamicInfo
-    weights::Vector{Float64}
+    weights_assigned::BitVector
+    raw_levels::Vector{Int16}
     level_weights::Vector{Float64}
-    level_buckets::Vector{Vector{Int}}
+    level_buckets::Vector{Vector{Tuple{Int, Float64}}}
     level_max::Vector{Float64}
     order_level::Vector{Int}
     inds_to_level::Vector{Int}
@@ -26,14 +27,15 @@ end
 
 DynamicSampler() = DynamicSampler(Random.default_rng())
 function DynamicSampler(rng)
-    weights = Float64[]
+    weights_assigned = BitVector()
+    raw_levels = Int16[]
     level_weights = Float64[0.0]
     order_level = Int[1]
-    level_buckets = [Int[],]
+    level_buckets = [Tuple{Int, Float64}[],]
     level_max = Float64[0.0]
     inds_to_level = Int[]
     return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, 0, 0, typemax(Int), typemin(Int), 0),
-        weights, level_weights, level_buckets, level_max, order_level, inds_to_level)
+        weights_assigned, raw_levels, level_weights, level_buckets, level_max, order_level, inds_to_level)
 end
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
@@ -41,7 +43,8 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 @inline function Base.push!(sp::DynamicSampler, idx, w)
     sp.info.idx = 0
     resize_w!(sp, idx)
-    sp.weights[idx] != 0.0 && error()
+    sp.weights_assigned[idx] != false && error(lazy"index $(idx) already in the sampler")
+    sp.weights_assigned[idx] = true
     sp.info.totweight += w
     sp.info.totvalues += 1
     level_raw = fast_ceil_log2(w)
@@ -51,9 +54,11 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     sp.level_max[level] = w > prev_w_max ? w : prev_w_max
     sp.level_weights[level] += w
     bucket = sp.level_buckets[level]
-    push!(bucket, idx)
-    !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = length(bucket))
-    sp.weights[idx] = w
+    push!(bucket, (idx, w))
+    if !isempty(sp.inds_to_level)
+        sp.raw_levels[idx] = Int16(level_raw)
+        sp.inds_to_level[idx] = length(bucket)
+    end
     if length(sp.level_weights) > length(sp.order_level)
         resize!(sp.order_level, length(sp.level_weights))
         sortperm!(sp.order_level, sp.level_weights; rev=true)
@@ -62,48 +67,30 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
 end
 
 function Base.append!(sp::DynamicSampler, inds, weights)
-    for (i, w) in zip(inds, weights)
-        push!(sp, i, w)
-    end
-    return sp
-end
-function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray}, weights)
     sp.info.idx = 0
-    nlevels = zeros(Int, length(sp.level_buckets))
+    resize_w!(sp, maximum(inds))
     sumweights = 0.0
     sumvalues = 0
-    levs = Vector{Int16}(undef, length(inds))
-    resize_w!(sp, maximum(inds))
-    @inbounds for (i, w) in enumerate(weights)
-        sp.weights[i] != 0.0 && error()
+    for (i, w) in zip(inds, weights)
+        sp.weights_assigned[i] != false && error(lazy"index $(i) already in the sampler")
+        sp.weights_assigned[i] = true
+        sumweights += w
+        sumvalues += 1
         level_raw = fast_ceil_log2(w)
-        createlevel!(sp, level_raw, nlevels)
+        createlevel!(sp, level_raw)
         level = level_raw - sp.info.level_min + 1
         prev_w_max = sp.level_max[level]
         sp.level_max[level] = w > prev_w_max ? w : prev_w_max
-        nlevels[level] += 1
         sp.level_weights[level] += w
-        sp.weights[inds[i]] = w
-        sumweights += w
-        sumvalues += 1
-        levs[i] = Int16(level_raw)
+        bucket = sp.level_buckets[level]
+        push!(bucket, (i, w))
+        if !isempty(sp.inds_to_level)
+            sp.raw_levels[i] = Int16(level_raw)
+            sp.inds_to_level[i] = length(bucket)
+        end
     end
     sp.info.totweight += sumweights
     sp.info.totvalues += sumvalues
-    @inbounds @simd for i in 1:length(sp.level_buckets)
-        bucket = sp.level_buckets[i]
-        bucket_length = length(bucket)
-        resize!(bucket, bucket_length + nlevels[i])
-        nlevels[i] = bucket_length
-    end
-    offset_level = sp.info.level_min - 1
-    @inbounds for (i, id) in enumerate(inds)
-        level = Int(levs[i]) - offset_level
-        bucket = sp.level_buckets[level]
-        nlevels[level] += 1
-        bucket[nlevels[level]] = id
-        !isempty(sp.inds_to_level) && (sp.inds_to_level[idx] = nlevels[level])
-    end
     if length(sp.level_weights) > length(sp.order_level)
         resize!(sp.order_level, length(sp.level_weights))
         sortperm!(sp.order_level, sp.level_weights; rev=true)
@@ -139,15 +126,13 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
     intu = unsafe_trunc(Int, u)
     fracu = u - intu
     idx_in_level = intu + 1
-    idx = bucket[idx_in_level]
-    weight = sp.weights[idx]
+    idx, weight = bucket[idx_in_level]
     @inbounds while fracu * level_max > weight
         u = rand(sp.rng) * level_size
         intu = unsafe_trunc(Int, u)
         fracu = u - intu
         idx_in_level = intu + 1
-        idx = bucket[idx_in_level]
-        weight = sp.weights[idx]
+        idx, weight = bucket[idx_in_level]
     end
     sp.info.idx = idx
     sp.info.weight = weight
@@ -166,36 +151,41 @@ end
     if sp.info.idx == idx
         _delete!(sp, idx, sp.info.weight, sp.info.level, sp.info.idx_in_level)
     else
-        weight = sp.weights[idx]
-        level = fast_ceil_log2(weight) - sp.info.level_min + 1
         if isempty(sp.inds_to_level)
-            resize!(sp.inds_to_level, length(sp.weights))
+            resize!(sp.raw_levels, length(sp.weights_assigned))
+            resize!(sp.inds_to_level, length(sp.weights_assigned))
             for bucket in sp.level_buckets
-                for (i, idx) in enumerate(bucket)
+                isempty(bucket) && continue
+                lraw = fast_ceil_log2(first(bucket)[2])
+                for (i, (idx, w)) in enumerate(bucket)
                     sp.inds_to_level[idx] = i
+                    sp.raw_levels[idx] = lraw
                 end
             end
         end
+        level = sp.raw_levels[idx] - sp.info.level_min + 1
         idx_in_level = sp.inds_to_level[idx]
+        weight = sp.level_buckets[level][idx_in_level][2]
         _delete!(sp, idx, weight, level, idx_in_level)
     end
     return sp
 end
 @inline function _delete!(sp, idx, weight, level, idx_in_level)
+    sp.weights_assigned[idx] != true && error(lazy"index $(idx) is not in the sampler")
     sp.info.reorder += 1
     if sp.info.reorder > 10000
         sp.info.reorder = 0
         sortperm!(sp.order_level, sp.level_weights; rev=true)
     end
     sp.info.idx = 0
-    sp.weights[idx] = 0.0
+    sp.weights_assigned[idx] = false
     sp.info.totvalues -= 1
     sp.info.totweight -= weight
     sp.level_weights[level] -= weight
     bucket = sp.level_buckets[level]
     bucket[idx_in_level], bucket[end] = bucket[end], bucket[idx_in_level]
     if !isempty(sp.inds_to_level)
-        idx_other = bucket[idx_in_level]
+        idx_other, weight_other = bucket[idx_in_level]
         sp.inds_to_level[idx_other] = idx_in_level
     end
     pop!(bucket)
@@ -206,11 +196,12 @@ function Base.empty!(sp::DynamicSampler)
         sp.level_max[i] = 0.0
         sp.level_weights[i] = 0.0
         @simd for j in bucket
-            sp.weights[j] = 0.0
-            sp.inds_to_level[j] = 0
+            sp.weights_assigned[j[1]] = false
+            sp.inds_to_level[j[1]] = 0
         end
         empty!(bucket)
     end
+    empty!(sp.inds_to_level)
     sp.info.totvalues = 0
     sp.info.totweight = 0.0
     sp.info.idx = 0
@@ -219,7 +210,7 @@ end
 Base.in(idx::Integer, sp::DynamicSampler) = sp.weights[idx] != 0.0
 Base.isempty(sp::DynamicSampler) = sp.info.totvalues == 0
 
-allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
+allinds(sp::DynamicSampler) = collect(Iterators.Flatten((Iterators.map(x -> x[1], b) for b in sp.level_buckets)))
 
 @inline function Base.setindex!(sp::DynamicSampler, idx, new_weight)
     delete!(sp, idx)
@@ -228,17 +219,19 @@ allinds(sp::DynamicSampler) = reduce(vcat, sp.level_buckets)
 end
 
 function Base.show(io::IO, mime::MIME"text/plain", sp::DynamicSampler)
-    inds = allinds(sp)
-    print("DynamicSampler(indices = $(inds), weights = $(sp.weights[inds]))")
+    print("DynamicSampler($(reduce(vcat, sp.level_buckets)))")
 end
 
 @inline function resize_w!(sp, N)
-    N_curr = length(sp.weights)
+    N_curr = length(sp.weights_assigned)
     if N > N_curr
-        resize!(sp.weights, N)
-        !isempty(sp.inds_to_level) && resize!(sp.inds_to_level, N)
+        resize!(sp.weights_assigned, N)
+        if !isempty(sp.inds_to_level)
+            resize!(sp.inds_to_level, N)
+            resize!(sp.raw_levels, N)
+        end
         @inbounds @simd for i in N_curr+1:N
-            sp.weights[i] = 0.0
+            sp.weights_assigned[i] = false
         end
     end
     return sp
