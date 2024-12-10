@@ -256,7 +256,7 @@ function Base.empty!(sp::DynamicSampler)
     sp.info.idx = 0
 end
 
-Base.in(idx::Integer, sp::DynamicSampler) = sp.weights[idx] != 0.0
+Base.in(idx::Integer, sp::DynamicSampler) = sp.weights_assigned[idx] == true
 Base.isempty(sp::DynamicSampler) = sp.info.totvalues == 0
 
 allinds(sp::DynamicSampler) = collect(Iterators.Flatten((Iterators.map(x -> x[1], b) for b in sp.level_buckets)))
