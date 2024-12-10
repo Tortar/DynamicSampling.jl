@@ -99,6 +99,7 @@ function Base.append!(sp::DynamicSampler, inds, weights)
 end
 function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray}, 
         weights::Union{UnitRange, AbstractArray})
+    @assert length(inds) == length(weights)
     sp.info.idx = 0
     nlevels = zeros(Int, length(sp.level_buckets))
     sumweights = 0.0
@@ -106,8 +107,6 @@ function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray},
     levs = Vector{Int16}(undef, length(inds))
     resize_w!(sp, maximum(inds))
     @inbounds for (i, w) in enumerate(weights)
-        sp.weights_assigned[i] != false && error(lazy"index $(i) already in the sampler")
-        sp.weights_assigned[i] = true
         level_raw = fast_ceil_log2(w)
         createlevel!(sp, level_raw, nlevels)
         level = level_raw - sp.info.level_min + 1
@@ -132,6 +131,8 @@ function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray},
     end
     offset_level = sp.info.level_min - 1
     @inbounds for (i, id) in enumerate(inds)
+        sp.weights_assigned[id] != false && error(lazy"index $(id) already in the sampler")
+        sp.weights_assigned[id] = true
         level = Int(levs[i]) - offset_level
         bucket = sp.level_buckets[level]
         nlevels[level] += 1
