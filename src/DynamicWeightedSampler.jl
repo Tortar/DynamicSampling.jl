@@ -1,4 +1,6 @@
 
+using Distributions
+
 # Inspired by https://www.aarondefazio.com/tangentially/?p=58
 
 mutable struct DynamicInfo
@@ -148,9 +150,33 @@ function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray},
     return sp
 end
 
-Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
+function Base.rand(sp::DynamicSampler, n::Integer)
+    sp.info.totweight = sum(sp.level_weights)
+    n_each = rand(sp.rng, Multinomial(n, sp.level_weights ./ sp.info.totweight))
+    randinds = Vector{Int}(undef, n)
+    q = 1
+    for (i, k) in enumerate(n_each)
+        bucket = sp.level_buckets[i]
+        level_size = length(bucket)
+        for _ in 1:k
+            randinds[q] = extract_rand_idx(sp, i, bucket, level_size)[1]
+            q += 1
+        end
+    end
+    return randinds
+end
+
 @inline function Base.rand(sp::DynamicSampler)
-    # Sample a level using the CDF method
+    level, bucket, level_size = extract_rand_level(sp)
+    idx, weight, level, idx_in_level = extract_rand_idx(sp, level, bucket, level_size)
+    sp.info.idx = idx
+    sp.info.weight = weight
+    sp.info.level = level
+    sp.info.idx_in_level = idx_in_level
+    return idx
+end
+
+@inline function extract_rand_level(sp::DynamicSampler)
     u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
     level = length(sp.level_weights)
@@ -170,6 +196,10 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
         level, bucket = first(Iterators.drop(notempty, rand_notempty-1))
         level_size = length(bucket)
     end
+    return level, bucket, level_size
+end
+
+@inline function extract_rand_idx(sp, level, bucket, level_size)
     level_max = sp.level_max[level]      
     # Now sample within the level using rejection sampling
     u = rand(sp.rng) * level_size
@@ -184,11 +214,7 @@ Base.rand(sp::DynamicSampler, n::Integer) = [rand(sp) for _ in 1:n]
         idx_in_level = intu + 1
         idx, weight = bucket[idx_in_level]
     end
-    sp.info.idx = idx
-    sp.info.weight = weight
-    sp.info.level = level
-    sp.info.idx_in_level = idx_in_level
-    return idx
+    return idx, weight, level, idx_in_level
 end
 
 function Base.delete!(sp::DynamicSampler, indices::Union{UnitRange, Vector{<:Integer}})
