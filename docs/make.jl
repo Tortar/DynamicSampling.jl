@@ -7,6 +7,7 @@ makedocs(
     modules = [DynamicSampling],
     sitename = "DynamicSampling.jl",
     pages = [
+        "API" => "index.md",
     ],
     warnonly = [:doctest, :missing_docs, :cross_references],
 )
