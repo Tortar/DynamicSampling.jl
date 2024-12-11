@@ -104,7 +104,7 @@ julia> groupedbar(
        )
 ```
 
-<img src="https://github.com/user-attachments/assets/a0c72953-56b6-403d-b0d9-8509a3e86724" width="500" />
+<img src="https://github.com/user-attachments/assets/c654359a-3729-4855-9a94-085ff2d88521" width="500" />
 
 From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
@@ -132,6 +132,7 @@ plot(1:8, ts, markershape=:circle, xlabel="number of indices",
      guidefontsize=8, dpi = 1200, legend=false
 )
 ```
-<img src="https://github.com/user-attachments/assets/53138ecf-4d13-41d4-a848-fa0a2d380ff4" width="500" />
+
+<img src="https://github.com/user-attachments/assets/3946eff8-472c-4dbd-8e65-3feb999f1b71" width="500" />
 
 This hints on the fact that the operation becomes essentially memory bound when the number of indices surpass roughly 1 million elements.
