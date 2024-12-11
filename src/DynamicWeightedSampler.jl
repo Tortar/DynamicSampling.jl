@@ -163,9 +163,9 @@ function Base.rand(sp::DynamicSampler, n::Integer)
             q += 1
         end
     end
+    shuffle!(sp.rng, randinds)
     return randinds
 end
-
 @inline function Base.rand(sp::DynamicSampler)
     level, bucket, level_size = extract_rand_level(sp)
     idx, weight, level, idx_in_level = extract_rand_idx(sp, level, bucket, level_size)
