@@ -47,6 +47,13 @@
     chisq_test = ChisqTest(counts_est, ps_exact)
     @test pvalue(chisq_test) > 0.05
 
+    samples_counts = countmap(rand(s3, 10^5))
+    counts_est = [samples_counts[i] for i in 1:b]
+    ps_exact = [i/((b ÷ 2)*(b+1)) for i in 1:b]
+
+    chisq_test = ChisqTest(counts_est, ps_exact)
+    @test pvalue(chisq_test) > 0.05
+
     for i in 1:(b ÷ 2)
     	delete!(s3, i)
     end
