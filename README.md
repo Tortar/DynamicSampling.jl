@@ -108,3 +108,30 @@ julia> groupedbar(
 
 From the figure, we can conclude that the dynamic versions are quite competitive even
 in this worst case analysis.
+
+Another insightful benchmark is the time for a single random draw in respect to the number of indices in the sampler:
+
+```julia
+using Random, BenchmarkTools, Plots
+
+using DynamicSampling
+
+q = 1
+rng = Xoshiro(42)
+ts = []
+for n in [10^i for i in 1:8]
+    sp = DynamicSampler(rng)
+    append!(sp, 1:n, 1:1/q:10)
+    b1 = @benchmark rand($sp)
+    push!(ts, mean(b1.times))
+    q += n
+end
+
+plot(1:8, ts, markershape=:circle, xlabel="number of indices", 
+     ylabel="time (ns)", xticks = (1:8, ["\$10^$(i)\$" for i in 1:8]),
+     guidefontsize=8, dpi = 1200, legend=false
+)
+```
+<img src="https://github.com/user-attachments/assets/53138ecf-4d13-41d4-a848-fa0a2d380ff4" width="500" />
+
+This hints on the fact that the operation becomes essentially memory bound when the number of indices surpass roughly 1 million elements.
