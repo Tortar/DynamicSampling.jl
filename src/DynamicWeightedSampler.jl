@@ -59,10 +59,8 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
         sp.raw_levels[idx] = Int16(level_raw)
         sp.inds_to_level[idx] = length(bucket)
     end
-    if length(sp.level_weights) > length(sp.order_level)
-        resize!(sp.order_level, length(sp.level_weights))
-        sortperm!(sp.order_level, sp.level_weights; rev=true)
-    end
+    resize_levels!(sp)
+    reorder_levels!(sp, 1)
     return sp
 end
 
@@ -91,10 +89,8 @@ function Base.append!(sp::DynamicSampler, inds, weights)
     end
     sp.info.totweight += sumweights
     sp.info.totvalues += sumvalues
-    if length(sp.level_weights) > length(sp.order_level)
-        resize!(sp.order_level, length(sp.level_weights))
-        sortperm!(sp.order_level, sp.level_weights; rev=true)
-    end
+    resize_levels!(sp)
+    reorder_levels!(sp, sumvalues)
     return sp
 end
 function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray}, 
@@ -141,10 +137,8 @@ function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray},
             sp.inds_to_level[i] = nlevels[level]
         end
     end
-    if length(sp.level_weights) > length(sp.order_level)
-        resize!(sp.order_level, length(sp.level_weights))
-        sortperm!(sp.order_level, sp.level_weights; rev=true)
-    end
+    resize_levels!(sp)
+    reorder_levels!(sp, sumvalues)
     return sp
 end
 
@@ -244,11 +238,6 @@ end
 end
 @inline function _delete!(sp, idx, weight, level, idx_in_level)
     sp.weights_assigned[idx] != true && error(lazy"index $(idx) is not in the sampler")
-    sp.info.reorder += 1
-    if sp.info.reorder > 10000
-        sp.info.reorder = 0
-        sortperm!(sp.order_level, sp.level_weights; rev=true)
-    end
     sp.info.idx = 0
     sp.weights_assigned[idx] = false
     sp.info.totvalues -= 1
@@ -261,6 +250,7 @@ end
         sp.inds_to_level[idx_other] = idx_in_level
     end
     pop!(bucket)
+    reorder_levels!(sp, 1)
 end
 
 function Base.empty!(sp::DynamicSampler)
@@ -329,6 +319,26 @@ end
             !isnothing(nlevels) && pushfirst!(nlevels, 0)
         end
         sp.info.level_min = level_w
+    end
+    return sp
+end
+
+@inline function resize_levels!(sp)
+    n1, n2 = length(sp.level_weights), length(sp.order_level)
+    if n2 < n1
+        resize!(sp.order_level, n1)
+        for i in n2:n1
+            sp.order_level[i] = i
+        end
+    end
+    return sp
+end
+
+@inline function reorder_levels!(sp, k)
+    sp.info.reorder += k
+    if sp.info.reorder > 10000
+        sp.info.reorder = 0
+        sortperm!(sp.order_level, sp.level_weights; rev=true)
     end
     return sp
 end
