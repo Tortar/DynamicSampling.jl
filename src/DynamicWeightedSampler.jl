@@ -327,7 +327,7 @@ end
     n1, n2 = length(sp.level_weights), length(sp.order_level)
     if n2 < n1
         resize!(sp.order_level, n1)
-        for i in n2:n1
+        for i in (n2+1):n1
             sp.order_level[i] = i
         end
     end
