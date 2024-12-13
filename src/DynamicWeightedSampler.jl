@@ -184,7 +184,7 @@ end
         sortperm!(sp.order_level, sp.level_weights)
         n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
         rand_notempty = rand(sp.rng, 1:n_notempty)
-        notempty = Iterators.filter(x -> length(x[1]) > 0, enumerate(sp.level_buckets))
+        notempty = Iterators.filter(x -> length(x[2]) > 0, enumerate(sp.level_buckets))
         level, bucket = first(Iterators.drop(notempty, rand_notempty-1))
     end
     return level, bucket
