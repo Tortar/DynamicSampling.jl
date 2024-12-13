@@ -1,8 +1,6 @@
 
 using Distributions
 
-# Inspired by https://www.aarondefazio.com/tangentially/?p=58
-
 mutable struct DynamicInfo
     totvalues::Int
     totweight::Float64
@@ -192,7 +190,7 @@ end
         sortperm!(sp.order_level, sp.level_weights; rev=true)
         n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
         rand_notempty = rand(sp.rng, 1:n_notempty)
-        notempty = ((i,b) for (i,b) in enumerate(sp.level_buckets) if length(b) > 0)
+        notempty = Iterators.filter(x -> length(x[1]) > 0, enumerate(sp.level_buckets))
         level, bucket = first(Iterators.drop(notempty, rand_notempty-1))
     end
     return level, bucket
