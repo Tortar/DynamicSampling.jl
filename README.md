@@ -136,3 +136,9 @@ plot(1:8, ts, markershape=:circle, xlabel="number of indices",
 <img src="https://github.com/user-attachments/assets/3946eff8-472c-4dbd-8e65-3feb999f1b71" width="500" />
 
 This hints on the fact that the operation becomes essentially memory bound when the number of indices surpass roughly 1 million elements.
+
+# References
+
+References for the techniques implemented in this library can be found in
+[A constant-time kinetic Monte Carlo algorithm for simulation of large biochemical reaction networks](https://www.researchgate.net/publication/5338017_A_constant-time_kinetic_Monte_Carlo_algorithm_for_simulation_of_large_biochemical_reaction_networks) and [Weighted random sampling with replacement with dynamic weights](https://www.aarondefazio.com/tangentially/?p=58)
+
