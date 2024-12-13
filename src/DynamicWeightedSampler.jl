@@ -157,9 +157,8 @@ function Base.rand(sp::DynamicSampler, n::Integer)
     q = 1
     for (i, k) in enumerate(n_each)
         bucket = sp.level_buckets[i]
-        level_size = length(bucket)
         for _ in 1:k
-            randinds[q] = extract_rand_idx(sp, i, bucket, level_size)[1]
+            randinds[q] = extract_rand_idx(sp, i, bucket)[1]
             q += 1
         end
     end
@@ -167,8 +166,8 @@ function Base.rand(sp::DynamicSampler, n::Integer)
     return randinds
 end
 @inline function Base.rand(sp::DynamicSampler)
-    level, bucket, level_size = extract_rand_level(sp)
-    idx, weight, level, idx_in_level = extract_rand_idx(sp, level, bucket, level_size)
+    level, bucket = extract_rand_level(sp)
+    idx, weight, level, idx_in_level = extract_rand_idx(sp, level, bucket)
     sp.info.idx = idx
     sp.info.weight = weight
     sp.info.level = level
@@ -188,27 +187,26 @@ end
         end
     end
     bucket = sp.level_buckets[level]
-    level_size = length(bucket)
-    if level_size == 0
+    if isempty(bucket)
+        sp.info.totweight = sum(sp.level_weights)
+        sortperm!(sp.order_level, sp.level_weights; rev=true)
         n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
         rand_notempty = rand(sp.rng, 1:n_notempty)
         notempty = ((i,b) for (i,b) in enumerate(sp.level_buckets) if length(b) > 0)
         level, bucket = first(Iterators.drop(notempty, rand_notempty-1))
-        level_size = length(bucket)
     end
-    return level, bucket, level_size
+    return level, bucket
 end
 
-@inline function extract_rand_idx(sp, level, bucket, level_size)
+@inline function extract_rand_idx(sp, level, bucket)
     level_max = sp.level_max[level]      
-    # Now sample within the level using rejection sampling
-    u = rand(sp.rng) * level_size
+    u = rand(sp.rng) * length(bucket)
     intu = unsafe_trunc(Int, u)
     fracu = u - intu
     idx_in_level = intu + 1
     idx, weight = bucket[idx_in_level]
     @inbounds while fracu * level_max > weight
-        u = rand(sp.rng) * level_size
+        u = rand(sp.rng) * length(bucket)
         intu = unsafe_trunc(Int, u)
         fracu = u - intu
         idx_in_level = intu + 1
@@ -217,7 +215,7 @@ end
     return idx, weight, level, idx_in_level
 end
 
-function Base.delete!(sp::DynamicSampler, indices::Union{UnitRange, Vector{<:Integer}})
+function Base.delete!(sp::DynamicSampler, indices)
     for i in indices
         delete!(sp, i)
     end
