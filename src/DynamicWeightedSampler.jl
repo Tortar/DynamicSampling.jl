@@ -171,7 +171,7 @@ end
     u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
     level = length(sp.level_weights)
-    @inbounds for i in sp.order_level
+    @inbounds for i in Iterators.reverse(sp.order_level)
         cumulative_weight += sp.level_weights[i]
         if u < cumulative_weight
             level = i
@@ -181,7 +181,7 @@ end
     bucket = sp.level_buckets[level]
     if isempty(bucket)
         sp.info.totweight = sum(sp.level_weights)
-        sortperm!(sp.order_level, sp.level_weights; rev=true)
+        sortperm!(sp.order_level, sp.level_weights)
         n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
         rand_notempty = rand(sp.rng, 1:n_notempty)
         notempty = Iterators.filter(x -> length(x[1]) > 0, enumerate(sp.level_buckets))
@@ -338,7 +338,7 @@ end
     sp.info.reorder += k
     if sp.info.reorder > 10000
         sp.info.reorder = 0
-        sortperm!(sp.order_level, sp.level_weights; rev=true)
+        sortperm!(sp.order_level, sp.level_weights)
     end
     return sp
 end
