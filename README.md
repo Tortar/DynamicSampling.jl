@@ -118,24 +118,32 @@ using DynamicSampling
 
 q = 1
 rng = Xoshiro(42)
-ts = []
+ts1 = []
+ts2 = []
 for n in [10^i for i in 1:8]
     sp = DynamicSampler(rng)
     append!(sp, 1:n, 1:1/q:10)
     b1 = @benchmark rand($sp)
-    push!(ts, mean(b1.times))
+    b2 = @benchmark rand($sp, 10^4)
+    push!(ts1, mean(b1.times))
+    push!(ts2, mean(b2.times)./10^4)
     q += n
 end
 
-plot(1:8, ts, markershape=:circle, xlabel="number of indices", 
-     ylabel="time (ns)", xticks = (1:8, ["\$10^$(i)\$" for i in 1:8]),
-     guidefontsize=8, dpi = 1200, legend=false
+plot!(1:8, ts1, markershape=:circle, xlabel="number of indices in the sampler", 
+     ylabel="time for one draw (ns)", xticks = (1:8, ["\$10^$(i)\$" for i in 1:8]),
+     guidefontsize=8, dpi = 1200, label="single", ytick=[10*x for x in 1:10]
+)
+plot!(1:8, ts2, markershape=:circle, xlabel="number of indices in the sampler", 
+     ylabel="time for one draw (ns)", xticks = (1:8, ["\$10^$(i)\$" for i in 1:8]),
+     guidefontsize=8, dpi = 1200, label="bulk", ytick=[10*x for x in 1:10]
 )
 ```
 
-<img src="https://github.com/user-attachments/assets/3946eff8-472c-4dbd-8e65-3feb999f1b71" width="500" />
+<img src="https://github.com/user-attachments/assets/0261b65b-cb58-49c9-bc0a-30f094ae90bb" width="500" />
 
-This hints on the fact that the operation becomes essentially memory bound when the number of indices surpass roughly 1 million elements.
+This hints on the fact that the operation becomes essentially memory bound when the number of indices surpass roughly 1 million elements,
+in particular in the case of single-instance random draws.
 
 # References
 
