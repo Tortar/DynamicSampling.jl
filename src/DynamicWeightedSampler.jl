@@ -188,19 +188,8 @@ end
     end
     bucket = sp.level_buckets[level]
     if isempty(bucket) || level_idx > 32
-        for i in eachindex(sp.level_weights)
-            bucket = sp.level_buckets[i]
-            sp.level_weights[i] = isempty(bucket) ? 0.0 : sum(x[2] for x in bucket)
-            sp.level_werrors[i] = 0.0
-        end
-        sp.info.totweight = sum(sp.level_weights)
-        sp.info.toterror = 0.0
+        isempty(bucket) && (level, bucket = recompute_bucket!(sp))
         sortperm!(sp.order_level, sp.level_weights)
-        n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
-        rand_notempty = rand(sp.rng, 1:n_notempty)
-        notempty = Iterators.filter(i -> !isempty(sp.level_buckets[i]), eachindex(sp.level_buckets))
-        level = first(Iterators.drop(notempty, rand_notempty-1))
-        bucket = sp.level_buckets[level]
     end
     return level, bucket
 end
@@ -360,6 +349,22 @@ end
         sortperm!(sp.order_level, sp.level_weights)
     end
     return sp
+end
+
+@inline function recompute_bucket!(sp)
+    @inbounds for i in eachindex(sp.level_weights)
+        bucket = sp.level_buckets[i]
+        sp.level_weights[i] = isempty(bucket) ? 0.0 : sum(x[2] for x in bucket)
+        sp.level_werrors[i] = 0.0
+    end
+    sp.info.totweight = sum(sp.level_weights)
+    sp.info.toterror = 0.0
+    n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
+    rand_notempty = rand(sp.rng, 1:n_notempty)
+    notempty = Iterators.filter(i -> !isempty(sp.level_buckets[i]), eachindex(sp.level_buckets))
+    level = first(Iterators.drop(notempty, rand_notempty-1))
+    bucket = sp.level_buckets[level]
+    return level, bucket
 end
 
 # From ErrorFreeAritmethic.jl
