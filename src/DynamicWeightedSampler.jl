@@ -177,20 +177,17 @@ end
     u = rand(sp.rng) * sp.info.totweight
     cumulative_weight = 0.0
     level = length(sp.level_weights)
-    @inbounds for i in Iterators.reverse(sp.order_level)
-        cumulative_weight += sp.level_weights[i]
+    level_idx = 1
+    @inbounds for (i, j) in enumerate(Iterators.reverse(sp.order_level))
+        cumulative_weight += sp.level_weights[j]
         if u < cumulative_weight
-            level = i
+            level_idx = i
+            level = j
             break
         end
     end
     bucket = sp.level_buckets[level]
-    if isempty(bucket)
-        for i in eachindex(sp.level_weights)
-            bucket = sp.level_buckets[i]
-            sp.level_weights[i] = isempty(bucket) ? 0.0 : sum(x[2] for x in bucket)
-            sp.level_werrors[i] = 0.0
-        end
+    if isempty(bucket) || level_idx > 32
         sp.info.totweight = sum(sp.level_weights)
         sp.info.toterror = 0.0
         sortperm!(sp.order_level, sp.level_weights)
