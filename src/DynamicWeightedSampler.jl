@@ -4,6 +4,7 @@ using Distributions
 mutable struct DynamicInfo
     totvalues::Int
     totweight::Float64
+    toterror::Float64
     idx::Int
     weight::Float64
     level::Int
@@ -19,6 +20,7 @@ struct DynamicSampler{R}
     weights_assigned::BitVector
     raw_levels::Vector{Int16}
     level_weights::Vector{Float64}
+    level_werrors::Vector{Float64}
     level_buckets::Vector{Vector{Tuple{Int, Float64}}}
     level_max::Vector{Float64}
     order_level::Vector{Int}
@@ -30,12 +32,14 @@ function DynamicSampler(rng)
     weights_assigned = BitVector()
     raw_levels = Int16[]
     level_weights = Float64[0.0]
+    level_werrors = Float64[0.0]
     order_level = Int[1]
     level_buckets = [Tuple{Int, Float64}[],]
     level_max = Float64[0.0]
     inds_to_level = Int[]
-    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0, 0.0, 0, 0, typemax(Int), typemin(Int), 0),
-        weights_assigned, raw_levels, level_weights, level_buckets, level_max, order_level, inds_to_level)
+    return DynamicSampler(rng, DynamicInfo(0, 0.0, 0.0, 0, 0.0, 0, 0, typemax(Int), typemin(Int), 0),
+        weights_assigned, raw_levels, level_weights, level_werrors, level_buckets, level_max, 
+        order_level, inds_to_level)
 end
 
 Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
@@ -45,14 +49,14 @@ Base.sizehint!(sp::DynamicSampler, N) = resize_w!(sp, N)
     resize_w!(sp, idx)
     sp.weights_assigned[idx] != false && error(lazy"index $(idx) already in the sampler")
     sp.weights_assigned[idx] = true
-    sp.info.totweight += w
     sp.info.totvalues += 1
     level_raw = exponent(w) + 1
     createlevel!(sp, level_raw)
     level = level_raw - sp.info.level_min + 1
     prev_w_max = sp.level_max[level]
     sp.level_max[level] = w > prev_w_max ? w : prev_w_max
-    sp.level_weights[level] += w
+    sp.info.totweight, sp.info.toterror = two_sum(sp.info.totweight, w + sp.info.toterror)
+    sp.level_weights[level], sp.level_werrors[level] = two_sum(sp.level_weights[level], w + sp.level_werrors[level])
     bucket = sp.level_buckets[level]
     push!(bucket, (idx, w))
     if !isempty(sp.inds_to_level)
@@ -67,19 +71,19 @@ end
 function Base.append!(sp::DynamicSampler, inds, weights)
     sp.info.idx = 0
     resize_w!(sp, maximum(inds))
-    sumweights = 0.0
+    sumweights, sumerrors = sp.info.totweight, sp.info.toterror
     sumvalues = 0
     for (i, w) in zip(inds, weights)
         sp.weights_assigned[i] != false && error(lazy"index $(i) already in the sampler")
         sp.weights_assigned[i] = true
-        sumweights += w
         sumvalues += 1
         level_raw = exponent(w) + 1
         createlevel!(sp, level_raw)
         level = level_raw - sp.info.level_min + 1
         prev_w_max = sp.level_max[level]
         sp.level_max[level] = w > prev_w_max ? w : prev_w_max
-        sp.level_weights[level] += w
+        sumweights, sumerrors = two_sum(sumweights, w + sumerrors)
+        sp.level_weights[level], sp.level_werrors[level] = two_sum(sp.level_weights[level], w + sp.level_werrors[level])
         bucket = sp.level_buckets[level]
         push!(bucket, (i, w))
         if !isempty(sp.inds_to_level)
@@ -87,7 +91,8 @@ function Base.append!(sp::DynamicSampler, inds, weights)
             sp.inds_to_level[i] = length(bucket)
         end
     end
-    sp.info.totweight += sumweights
+    sp.info.totweight = sumweights
+    sp.info.toterror = sumerrors
     sp.info.totvalues += sumvalues
     resize_levels!(sp)
     reorder_levels!(sp, sumvalues)
@@ -98,7 +103,7 @@ function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray},
     @assert length(inds) == length(weights)
     sp.info.idx = 0
     nlevels = zeros(Int, length(sp.level_buckets))
-    sumweights = 0.0
+    sumweights, sumerrors = sp.info.totweight, sp.info.toterror
     sumvalues = 0
     levs = Vector{Int16}(undef, length(inds))
     resize_w!(sp, maximum(inds))
@@ -109,15 +114,16 @@ function Base.append!(sp::DynamicSampler, inds::Union{UnitRange, AbstractArray},
         prev_w_max = sp.level_max[level]
         sp.level_max[level] = w > prev_w_max ? w : prev_w_max
         nlevels[level] += 1
-        sp.level_weights[level] += w
-        sumweights += w
+        sumweights, sumerrors = two_sum(sumweights, w + sumerrors)
+        sp.level_weights[level], sp.level_werrors[level] = two_sum(sp.level_weights[level], w + sp.level_werrors[level])
         sumvalues += 1
         levs[i] = Int16(level_raw)
         if !isempty(sp.inds_to_level)
             sp.raw_levels[i] = Int16(level_raw)
         end
     end
-    sp.info.totweight += sumweights
+    sp.info.totweight = sumweights
+    sp.info.toterror = sumerrors
     sp.info.totvalues += sumvalues
     @inbounds @simd for i in 1:length(sp.level_buckets)
         bucket = sp.level_buckets[i]
@@ -180,7 +186,13 @@ end
     end
     bucket = sp.level_buckets[level]
     if isempty(bucket)
+        for i in eachindex(sp.level_weights)
+            bucket = sp.level_buckets[i]
+            sp.level_weights[i] = isempty(bucket) ? 0.0 : sum(x[2] for x in bucket)
+            sp.level_werrors[i] = 0.0
+        end
         sp.info.totweight = sum(sp.level_weights)
+        sp.info.toterror = 0.0
         sortperm!(sp.order_level, sp.level_weights)
         n_notempty = sum(length(b) > 0 for b in sp.level_buckets)
         rand_notempty = rand(sp.rng, 1:n_notempty)
@@ -242,8 +254,9 @@ end
     sp.info.idx = 0
     sp.weights_assigned[idx] = false
     sp.info.totvalues -= 1
-    sp.info.totweight -= weight
-    sp.level_weights[level] -= weight
+    tw = sp.info.totweight
+    sp.info.totweight, sp.info.toterror = two_sum(sp.info.totweight, -weight + sp.info.toterror)
+    sp.level_weights[level], sp.level_werrors[level] = two_sum(sp.level_weights[level], -weight + sp.level_werrors[level])
     bucket = sp.level_buckets[level]
     bucket[idx_in_level], bucket[end] = bucket[end], bucket[idx_in_level]
     if !isempty(sp.inds_to_level)
@@ -258,6 +271,7 @@ function Base.empty!(sp::DynamicSampler)
     @inbounds for (i, bucket) in enumerate(sp.level_buckets)
         sp.level_max[i] = 0.0
         sp.level_weights[i] = 0.0
+        sp.level_werrors[i] = 0.0
         @simd for j in bucket
             sp.weights_assigned[j[1]] = false
             sp.inds_to_level[j[1]] = 0
@@ -266,7 +280,7 @@ function Base.empty!(sp::DynamicSampler)
     end
     empty!(sp.inds_to_level)
     sp.info.totvalues = 0
-    sp.info.totweight = 0.0
+    sp.info.totweight, sp.info.toterror = 0.0, 0.0
     sp.info.idx = 0
 end
 
@@ -309,6 +323,7 @@ end
             push!(sp.level_max, 0.0)
             push!(sp.level_buckets, Int[])
             push!(sp.level_weights, 0.0)
+            push!(sp.level_werrors, 0.0)
             !isnothing(nlevels) && push!(nlevels, 0)
         end
         sp.info.level_max = level_w
@@ -317,6 +332,7 @@ end
             pushfirst!(sp.level_max, 0.0)
             pushfirst!(sp.level_buckets, Int[])
             pushfirst!(sp.level_weights, 0.0)
+            pushfirst!(sp.level_werrors, 0.0)
             !isnothing(nlevels) && pushfirst!(nlevels, 0)
         end
         sp.info.level_min = level_w
@@ -337,9 +353,17 @@ end
 
 @inline function reorder_levels!(sp, k)
     sp.info.reorder += k
-    if sp.info.reorder > 10000
+    if sp.info.reorder > length(sp.level_weights)*50
         sp.info.reorder = 0
         sortperm!(sp.order_level, sp.level_weights)
     end
     return sp
+end
+
+# From ErrorFreeAritmethic.jl
+@inline function two_sum(a::T, b::T) where {T<:Real}
+    hi = a + b
+    v  = hi - a
+    lo = (a - (hi - v)) + (b - v)
+    (hi, lo)
 end
